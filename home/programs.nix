@@ -8,6 +8,12 @@
       direnv hook fish | source
       set -gx EDITOR nvim
       fish_vi_key_bindings
+
+      # Add VS Code CLI to PATH (Fish requires extra care with paths that have spaces)
+      set -l code_bin "/mnt/c/Users/klact/AppData/Local/Programs/Microsoft VS Code/bin"
+      if test -d "$code_bin"
+        set -gx PATH $code_bin $PATH
+      end
     '';
 
     functions = {
