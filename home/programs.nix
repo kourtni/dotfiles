@@ -1,6 +1,20 @@
-{ home-manager, pkgs, ... }:
+{ pkgs, ... }:
 
 {
+  
+  # programs.git = {
+  #   enable = true;
+  #   userName = builtins.readFile config.sops.secrets.github_name.path;
+  #   userEmail = builtins.readFile config.sops.secrets.github_email.path;
+  #
+  #   extraConfig = {
+  #     credential.helper = "store";
+  #   };
+  # };
+
+  # home.file.".git-credentials".text =
+  #   "https://${builtins.readFile config.sops.secrets.github_token.path}:x-oauth-basic@github.com";
+
   programs.fish = {
     enable = true;
 
@@ -40,8 +54,5 @@
     nerd-fonts.fira-code
     nerd-fonts.jetbrains-mono
     nerd-fonts.hack
-
-    # ✅ Add home-manager CLI from the flake input
-    home-manager.packages.${pkgs.system}.home-manager
   ];
 }
