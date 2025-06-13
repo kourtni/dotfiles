@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ home-manager, pkgs, ... }:
 
 {
   programs.fish = {
@@ -40,5 +40,8 @@
     nerd-fonts.fira-code
     nerd-fonts.jetbrains-mono
     nerd-fonts.hack
+
+    # ✅ Add home-manager CLI from the flake input
+    home-manager.packages.${pkgs.system}.home-manager
   ];
 }

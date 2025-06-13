@@ -1,11 +1,11 @@
-{ config, pkgs, ... }:
+{ config, home-manager, pkgs, ... }:
 
 let
   isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
 in
 {
   imports = [
-    ./programs.nix
+    (import ./programs.nix { inherit pkgs home-manager; })
     ./dotfiles.nix
     ./hosts/default.nix
   ];

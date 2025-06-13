@@ -31,11 +31,13 @@
 
   # Add some some basic system packages
   environment.systemPackages = with pkgs; [
+    age
     direnv
     gh
     git
     neovim
     nix-direnv
+    sops
     wget
   ];
 
