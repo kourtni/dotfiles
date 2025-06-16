@@ -19,46 +19,67 @@ A portable, reproducible development environment configuration using Nix flakes 
 - [Nix package manager](https://nixos.org/download.html) with flakes enabled
 - [Home Manager](https://github.com/nix-community/home-manager) (installed automatically)
 
-### One-Command Installation
+### Setup Your Configuration
 
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/kourtni/dotfiles.git
+   cd dotfiles
+   ```
+
+2. **Create your user configuration**:
+   ```bash
+   cp user-config.nix.template user-config.nix
+   # Edit user-config.nix with your username, email, etc.
+   ```
+
+3. **Install**:
+   ```bash
+   nix run .#home-manager -- switch --flake .
+   ```
+
+### Quick Install (Advanced)
+
+If you want to try the configuration as-is:
 ```bash
-# Install on any supported platform
+# Uses default "kourtni" configuration
 nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles
-```
-
-Or clone and install locally:
-
-```bash
-git clone https://github.com/kourtni/dotfiles.git
-cd dotfiles
-nix run .#home-manager -- switch --flake .
 ```
 
 ## 🖥️ Supported Platforms
 
-| Platform | Architecture | Status |
-|----------|-------------|--------|
-| Linux | x86_64 | ✅ |
-| Linux | aarch64 | ✅ |
-| macOS | x86_64 (Intel) | ✅ |
-| macOS | aarch64 (Apple Silicon) | ✅ |
-| WSL2 | x86_64 | ✅ |
+The configuration automatically detects your platform and adapts accordingly:
+
+| Platform | Architecture | Detection | Status |
+|----------|-------------|-----------|--------|
+| NixOS | x86_64, aarch64 | `nixos` | ✅ |
+| NixOS on WSL | x86_64 | `nixos-wsl` | ✅ |
+| Linux + Nix | x86_64, aarch64 | `linux` | ✅ |
+| Linux + Nix on WSL | x86_64 | `linux-wsl` | ✅ |
+| macOS + Nix | x86_64, aarch64 | `darwin` | ✅ |
+
+**Platform Variables Available:**
+- `SYSTEM_TYPE`: One of the detection values above
+- `IS_NIXOS`: `true` on NixOS, `false` on other Linux distros
+- `IS_WSL`: `true` in WSL environments, `false` on native systems
 
 ## 📁 Project Structure
 
 ```
 dotfiles/
-├── flake.nix              # Main flake configuration
-├── flake.lock             # Locked dependencies
+├── flake.nix                    # Main flake configuration
+├── flake.lock                   # Locked dependencies
+├── user-config.nix              # User-specific settings (create from template)
+├── user-config.nix.template     # Template for user configuration
 ├── home/
-│   ├── default.nix        # Main home-manager configuration
-│   ├── programs.nix       # Program configurations (git, fish, etc.)
-│   ├── platforms.nix      # Platform-specific settings
-│   ├── hosts/             # Host-specific overrides
-│   ├── secrets/           # Encrypted secrets
+│   ├── default.nix              # Main home-manager configuration
+│   ├── programs.nix             # Program configurations (git, fish, etc.)
+│   ├── platforms.nix            # Platform-specific settings and detection
+│   ├── hosts/                   # Host-specific overrides
+│   ├── secrets/                 # Encrypted secrets (sops-nix)
 │   └── starship-settings-from-toml.nix  # Starship prompt config
 ├── nixos/
-│   ├── configuration.nix  # NixOS system configuration (WSL)
+│   ├── configuration.nix        # NixOS system configuration
 │   └── hardware-configuration.nix
 └── README.md
 ```
@@ -84,10 +105,11 @@ dotfiles/
 
 The configuration automatically detects your platform and adapts:
 
-- **WSL**: Adds Windows VS Code to PATH (`/mnt/c/...`)
-- **macOS**: Sets Homebrew prefix, uses macOS VS Code path
-- **Linux**: Native Linux optimizations
-- **Environment Variables**: `SYSTEM_TYPE`, `WSL` for platform detection
+- **NixOS**: Handles Nix store paths and NixOS-specific filesystem layout
+- **Traditional Linux**: Uses standard paths like `/bin/bash` for compatibility  
+- **WSL**: Adds Windows VS Code integration, cross-platform file access
+- **macOS**: Sets Homebrew prefix, uses macOS-specific paths
+- **Environment Variables**: `SYSTEM_TYPE`, `IS_NIXOS`, `IS_WSL` for platform detection
 
 ## 🔐 Secrets Management
 
@@ -159,11 +181,11 @@ hm-rebuild
 ### System-Specific Commands
 
 ```bash
-# Use specific system configuration
-home-manager switch --flake .#kourtni@x86_64-darwin   # macOS Intel
-home-manager switch --flake .#kourtni@aarch64-darwin  # macOS Apple Silicon
-home-manager switch --flake .#kourtni@x86_64-linux    # Linux x64
-home-manager switch --flake .#kourtni@aarch64-linux   # Linux ARM
+# Use specific system configuration (replace 'username' with your actual username)
+home-manager switch --flake .#username@x86_64-darwin   # macOS Intel
+home-manager switch --flake .#username@aarch64-darwin  # macOS Apple Silicon
+home-manager switch --flake .#username@x86_64-linux    # Linux x64
+home-manager switch --flake .#username@aarch64-linux   # Linux ARM
 ```
 
 ### NixOS (WSL)
@@ -172,6 +194,32 @@ home-manager switch --flake .#kourtni@aarch64-linux   # Linux ARM
 # Rebuild NixOS configuration
 sudo nixos-rebuild switch --flake .#wsl
 ```
+
+## ⚙️ User Configuration
+
+The `user-config.nix` file contains all user-specific settings:
+
+```nix
+{
+  # User settings
+  username = "your-username";
+  homeDirectory = "/home/your-username";
+  
+  # Git settings (overridden by sops secrets if configured)
+  git = {
+    name = "Your Full Name";
+    email = "your.email@example.com";
+  };
+  
+  # Platform-specific paths
+  windowsUsername = "your-windows-username"; # For WSL VS Code integration
+  
+  # System settings
+  stateVersion = "24.11"; # Home Manager state version
+}
+```
+
+This approach makes the dotfiles completely generic while allowing easy customization.
 
 ## 🔄 Updating
 
@@ -225,7 +273,7 @@ Edit `home/programs.nix` to customize fish shell, git, or other programs.
 
 ```bash
 # Check platform detection
-echo $SYSTEM_TYPE
+echo "System: $SYSTEM_TYPE, NixOS: $IS_NIXOS, WSL: $IS_WSL"
 
 # View decrypted secrets (for debugging)
 sops -d home/secrets/secrets.enc.yaml
