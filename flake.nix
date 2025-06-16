@@ -21,12 +21,19 @@
 
   outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, sops-nix, ... }: 
     let
-      system = "x86_64-linux";
-      pkgs = import nixpkgs { inherit system; };
+      # Supported systems
+      supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      
+      # Helper function to generate outputs for each system
+      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      
+      # Default system for NixOS configurations
+      defaultSystem = "x86_64-linux";
+      pkgs = import nixpkgs { system = defaultSystem; };
     in {
       # Used by `sudo nixos-rebuild switch --flake`
       nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
-        inherit system;
+        system = defaultSystem;
         modules = [
 	  
           ({ pkgs, ... }: {
@@ -55,17 +62,43 @@
         ];
       };
 
-      # This is for `home-manager switch --flake`
-      homeConfigurations.kourtni = home-manager.lib.homeManagerConfiguration {
-        pkgs = pkgs;
-        modules = [ 
-          ./home/default.nix 
-          sops-nix.homeManagerModules.sops
-        ];
+      # Home-manager configurations for different systems
+      homeConfigurations = {
+        # Default configuration (works on any system)
+        kourtni = home-manager.lib.homeManagerConfiguration {
+          pkgs = pkgs;
+          modules = [ 
+            ./home/default.nix 
+            sops-nix.homeManagerModules.sops
+          ];
+        };
+        
+        # System-specific configurations if needed
+        "kourtni@x86_64-linux" = home-manager.lib.homeManagerConfiguration {
+          pkgs = import nixpkgs { system = "x86_64-linux"; };
+          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
+        };
+        
+        "kourtni@aarch64-linux" = home-manager.lib.homeManagerConfiguration {
+          pkgs = import nixpkgs { system = "aarch64-linux"; };
+          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
+        };
+        
+        "kourtni@x86_64-darwin" = home-manager.lib.homeManagerConfiguration {
+          pkgs = import nixpkgs { system = "x86_64-darwin"; };
+          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
+        };
+        
+        "kourtni@aarch64-darwin" = home-manager.lib.homeManagerConfiguration {
+          pkgs = import nixpkgs { system = "aarch64-darwin"; };
+          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
+        };
       };
 
-      # Make home-manager accessible via nix run and nix shell
-      packages.x86_64-linux.home-manager = home-manager.packages.${system}.home-manager;
-      defaultPackage.x86_64-linux = home-manager.packages.${system}.home-manager;
+      # Make home-manager accessible via nix run and nix shell for all systems
+      packages = forAllSystems (system: {
+        home-manager = home-manager.packages.${system}.home-manager;
+        default = home-manager.packages.${system}.home-manager;
+      });
     };
 }

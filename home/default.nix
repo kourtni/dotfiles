@@ -1,13 +1,22 @@
-{ config, home-manager, pkgs, ... }:
+{ config, home-manager, pkgs, lib, ... }:
 
 let
+  # Platform detection
+  isLinux = pkgs.stdenv.isLinux;
+  isDarwin = pkgs.stdenv.isDarwin;
   isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
+  
+  # System-specific settings
+  systemType = if isWSL then "wsl" 
+               else if isDarwin then "darwin"
+               else if isLinux then "linux"  
+               else "unknown";
 in
 {
   imports = [
     # Note: sops-nix is imported at the system level in flake.nix
-    (import ./programs.nix { inherit config pkgs home-manager; })
-    # ./dotfiles.nix
+    (import ./programs.nix { inherit config pkgs lib; })
+    ./platforms.nix
     ./hosts/default.nix
   ];
 
@@ -34,11 +43,6 @@ in
 
   programs.home-manager.enable = true;
 
-  home.sessionVariables = {
-    WSL = if isWSL then "true" else "false";
-  };
-
-  # Optional WSL-specific settings could go here:
-  # home.packages = if isWSL then [ pkgs.htop ] else [ pkgs.firefox ];
+  # Platform-specific configurations are handled in platforms.nix
 
 }

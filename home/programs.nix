@@ -1,4 +1,20 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
+
+let
+  # Platform detection
+  isLinux = pkgs.stdenv.isLinux;
+  isDarwin = pkgs.stdenv.isDarwin;
+  isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
+  
+  # Platform-specific VS Code paths
+  vscodeWSLPath = "/mnt/c/Users/klact/AppData/Local/Programs/Microsoft VS Code/bin";
+  vscodeDarwinPath = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin";
+  
+  # Determine VS Code path based on platform
+  vscodePath = if isWSL then vscodeWSLPath
+               else if isDarwin then vscodeDarwinPath
+               else null; # No default path for native Linux
+in
 
 {
   
@@ -33,9 +49,10 @@
       direnv hook fish | source
       set -gx EDITOR nvim
       fish_vi_key_bindings
+    '' + lib.optionalString (vscodePath != null) ''
 
-      # Add VS Code CLI to PATH (Fish requires extra care with paths that have spaces)
-      set -l code_bin "/mnt/c/Users/klact/AppData/Local/Programs/Microsoft VS Code/bin"
+      # Add VS Code CLI to PATH (Platform-specific)
+      set -l code_bin "${vscodePath}"
       if test -d "$code_bin"
         set -gx PATH $code_bin $PATH
       end
@@ -56,32 +73,10 @@
 
   fonts.fontconfig.enable = true;
 
-  home.packages = with pkgs; [
-    curl
-    fish
-    htop
-    nodejs_22
-    nodePackages.npm
-    vim
-
-    # fonts
-    nerd-fonts._0xproto
-    nerd-fonts.droid-sans-mono
-    nerd-fonts.fira-code
-    nerd-fonts.jetbrains-mono
-    nerd-fonts.hack
-  ];
-
   # Add npm global bin to PATH
   home.sessionPath = [
     "$HOME/.npm-global/bin"
   ];
-
-  # Set up npm configuration
-  home.file.".npmrc".text = ''
-    prefix=~/.npm-global
-    update-notifier=false
-  '';
 
   # REPRODUCIBLE: Auto-install Claude Code via Home Manager activation
   home.activation.claudeCode = config.lib.dag.entryAfter ["writeBoundary"] ''
