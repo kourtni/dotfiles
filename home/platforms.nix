@@ -4,7 +4,19 @@ let
   # Platform detection
   isLinux = pkgs.stdenv.isLinux;
   isDarwin = pkgs.stdenv.isDarwin;
-  isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
+  
+  # More robust WSL detection using multiple methods
+  wslInteropExists = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
+  kernelVersionContainsMicrosoft = 
+    let
+      versionFile = /proc/version;
+    in
+      if builtins.pathExists versionFile
+      then builtins.match ".*microsoft.*" (builtins.readFile versionFile) != null
+      else false;
+  wslEnvExists = builtins.pathExists /run/WSL;
+  
+  isWSL = wslInteropExists || kernelVersionContainsMicrosoft || wslEnvExists;
   
   systemType = if isWSL then "wsl" 
                else if isDarwin then "darwin"
@@ -46,14 +58,15 @@ in
   );
 
   # Platform-specific environment variables
+  # Note: WSL and SYSTEM_TYPE are set dynamically in shell init
   home.sessionVariables = {
-    SYSTEM_TYPE = systemType;
-    WSL = if isWSL then "true" else "false";
   } // lib.optionalAttrs isDarwin {
     # Darwin-specific environment variables
     HOMEBREW_PREFIX = "/opt/homebrew";
+    SYSTEM_TYPE = "darwin";
+    WSL = "false";
   } // lib.optionalAttrs isLinux {
-    # Linux-specific environment variables
+    # Linux-specific environment variables - WSL detection done at runtime
   };
 
   # Platform-specific configurations

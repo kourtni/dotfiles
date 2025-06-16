@@ -49,6 +49,18 @@ in
       direnv hook fish | source
       set -gx EDITOR nvim
       fish_vi_key_bindings
+
+      # Runtime platform detection for Linux systems
+      if test (uname) = "Linux"
+        # Detect WSL environment
+        if test -e /proc/sys/fs/binfmt_misc/WSLInterop; or test -e /run/WSL; or string match -q "*microsoft*" (uname -r)
+          set -gx WSL "true"
+          set -gx SYSTEM_TYPE "wsl"
+        else
+          set -gx WSL "false"
+          set -gx SYSTEM_TYPE "linux"
+        end
+      end
     '' + lib.optionalString (vscodePath != null) ''
 
       # Add VS Code CLI to PATH (Platform-specific)

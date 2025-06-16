@@ -1,17 +1,4 @@
 { config, home-manager, pkgs, lib, ... }:
-
-let
-  # Platform detection
-  isLinux = pkgs.stdenv.isLinux;
-  isDarwin = pkgs.stdenv.isDarwin;
-  isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
-  
-  # System-specific settings
-  systemType = if isWSL then "wsl" 
-               else if isDarwin then "darwin"
-               else if isLinux then "linux"  
-               else "unknown";
-in
 {
   imports = [
     # Note: sops-nix is imported at the system level in flake.nix
