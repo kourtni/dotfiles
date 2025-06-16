@@ -61,13 +61,31 @@ in
       # Runtime platform detection for Linux systems
       if test (uname) = "Linux"
         # Detect WSL environment
+        set -l is_wsl "false"
         if test -e /proc/sys/fs/binfmt_misc/WSLInterop; or test -e /run/WSL; or string match -q "*microsoft*" (uname -r)
-          set -gx WSL "true"
-          set -gx SYSTEM_TYPE "wsl"
+          set is_wsl "true"
+        end
+        
+        # Detect NixOS
+        set -l is_nixos "false"
+        if test -d /etc/nixos
+          set is_nixos "true"
+        end
+        
+        # Set granular system type
+        if test "$is_wsl" = "true"; and test "$is_nixos" = "true"
+          set -gx SYSTEM_TYPE "nixos-wsl"
+        else if test "$is_wsl" = "true"
+          set -gx SYSTEM_TYPE "linux-wsl"
+        else if test "$is_nixos" = "true"
+          set -gx SYSTEM_TYPE "nixos"
         else
-          set -gx WSL "false"
           set -gx SYSTEM_TYPE "linux"
         end
+        
+        # Set detection variables
+        set -gx IS_WSL "$is_wsl"
+        set -gx IS_NIXOS "$is_nixos"
       end
     '' + lib.optionalString (vscodePath != null) ''
 
