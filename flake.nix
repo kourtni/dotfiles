@@ -56,44 +56,45 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.users.kourtni = import ./home/default.nix;
+            home-manager.users.${(import ./user-config.nix).username} = import ./home/default.nix;
             home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
           }
         ];
       };
 
       # Home-manager configurations for different systems
-      homeConfigurations = {
-        # Default configuration (works on any system)
-        kourtni = home-manager.lib.homeManagerConfiguration {
-          pkgs = pkgs;
-          modules = [ 
-            ./home/default.nix 
-            sops-nix.homeManagerModules.sops
-          ];
+      homeConfigurations = 
+        let
+          username = (import ./user-config.nix).username;
+          commonModules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
+        in {
+          # Default configuration (works on any system)
+          ${username} = home-manager.lib.homeManagerConfiguration {
+            pkgs = pkgs;
+            modules = commonModules;
+          };
+          
+          # System-specific configurations if needed
+          "${username}@x86_64-linux" = home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs { system = "x86_64-linux"; };
+            modules = commonModules;
+          };
+          
+          "${username}@aarch64-linux" = home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs { system = "aarch64-linux"; };
+            modules = commonModules;
+          };
+          
+          "${username}@x86_64-darwin" = home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs { system = "x86_64-darwin"; };
+            modules = commonModules;
+          };
+          
+          "${username}@aarch64-darwin" = home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs { system = "aarch64-darwin"; };
+            modules = commonModules;
+          };
         };
-        
-        # System-specific configurations if needed
-        "kourtni@x86_64-linux" = home-manager.lib.homeManagerConfiguration {
-          pkgs = import nixpkgs { system = "x86_64-linux"; };
-          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
-        };
-        
-        "kourtni@aarch64-linux" = home-manager.lib.homeManagerConfiguration {
-          pkgs = import nixpkgs { system = "aarch64-linux"; };
-          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
-        };
-        
-        "kourtni@x86_64-darwin" = home-manager.lib.homeManagerConfiguration {
-          pkgs = import nixpkgs { system = "x86_64-darwin"; };
-          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
-        };
-        
-        "kourtni@aarch64-darwin" = home-manager.lib.homeManagerConfiguration {
-          pkgs = import nixpkgs { system = "aarch64-darwin"; };
-          modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
-        };
-      };
 
       # Make home-manager accessible via nix run and nix shell for all systems
       packages = forAllSystems (system: {

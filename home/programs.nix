@@ -1,13 +1,15 @@
 { config, pkgs, lib, ... }:
 
 let
+  userConfig = import ../user-config.nix;
+  
   # Platform detection
   isLinux = pkgs.stdenv.isLinux;
   isDarwin = pkgs.stdenv.isDarwin;
   isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
   
   # Platform-specific VS Code paths
-  vscodeWSLPath = "/mnt/c/Users/klact/AppData/Local/Programs/Microsoft VS Code/bin";
+  vscodeWSLPath = "/mnt/c/Users/${userConfig.windowsUsername}/AppData/Local/Programs/Microsoft VS Code/bin";
   vscodeDarwinPath = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin";
   
   # Determine VS Code path based on platform
@@ -20,7 +22,9 @@ in
   
   programs.git = {
     enable = true;
-    # Git config will be set up via activation script using sops secrets
+    # Fallback git config (can be overridden by sops secrets)
+    userName = userConfig.git.name;
+    userEmail = userConfig.git.email;
     extraConfig = {
       credential.helper = "store";
     };
@@ -28,17 +32,21 @@ in
 
   # Set up git credentials and config via activation script that can read sops secrets
   home.activation.setupGitSecrets = config.lib.dag.entryAfter ["writeBoundary"] ''
-    # Set git user name and email from sops secrets
+    # Set git user name and email from sops secrets (overrides default config)
     if [ -f "${config.sops.secrets.github_name.path}" ] && [ -f "${config.sops.secrets.github_email.path}" ]; then
       ${pkgs.git}/bin/git config --global user.name "$(cat ${config.sops.secrets.github_name.path})"
       ${pkgs.git}/bin/git config --global user.email "$(cat ${config.sops.secrets.github_email.path})"
       echo "✅ Git user config updated from sops secrets"
+    else
+      echo "ℹ️  Using git config from user-config.nix (no sops secrets found)"
     fi
     
     # Set up git credentials from sops secrets
     if [ -f "${config.sops.secrets.github_token.path}" ]; then
       echo "https://$(cat ${config.sops.secrets.github_token.path}):x-oauth-basic@github.com" > ~/.git-credentials
       echo "✅ Git credentials updated from sops secrets"
+    else
+      echo "ℹ️  No GitHub token found in sops secrets"
     fi
   '';
 

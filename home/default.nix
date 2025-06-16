@@ -1,4 +1,8 @@
 { config, home-manager, pkgs, lib, ... }:
+
+let
+  userConfig = import ../user-config.nix;
+in
 {
   imports = [
     # Note: sops-nix is imported at the system level in flake.nix
@@ -24,9 +28,9 @@
     };
   };
 
-  home.username = "kourtni";
-  home.homeDirectory = "/home/kourtni";
-  home.stateVersion = "24.11";
+  home.username = userConfig.username;
+  home.homeDirectory = userConfig.homeDirectory;
+  home.stateVersion = userConfig.stateVersion;
 
   programs.home-manager.enable = true;
 

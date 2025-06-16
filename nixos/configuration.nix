@@ -7,20 +7,24 @@
 
 { config, lib, pkgs, ... }:
 
+let
+  userConfig = import ../user-config.nix;
+in
+
 {
   imports = [
     ./hardware-configuration.nix
   ];
 
   wsl.enable = true;
-  wsl.defaultUser = "kourtni";
+  wsl.defaultUser = userConfig.username;
 
   # Enable flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   
   networking.hostName = "wsl"; # <- must match the flake output key
 
-  users.users.kourtni = {
+  users.users.${userConfig.username} = {
     isNormalUser = true;
     shell = pkgs.fish;
     extraGroups = [ "wheel" ];
