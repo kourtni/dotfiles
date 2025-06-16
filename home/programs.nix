@@ -2,18 +2,29 @@
 
 {
   
-  # programs.git = {
-  #   enable = true;
-  #   userName = builtins.readFile config.sops.secrets.github_name.path;
-  #   userEmail = builtins.readFile config.sops.secrets.github_email.path;
-  #
-  #   extraConfig = {
-  #     credential.helper = "store";
-  #   };
-  # };
+  programs.git = {
+    enable = true;
+    # Git config will be set up via activation script using sops secrets
+    extraConfig = {
+      credential.helper = "store";
+    };
+  };
 
-  # home.file.".git-credentials".text =
-  #   "https://${builtins.readFile config.sops.secrets.github_token.path}:x-oauth-basic@github.com";
+  # Set up git credentials and config via activation script that can read sops secrets
+  home.activation.setupGitSecrets = config.lib.dag.entryAfter ["writeBoundary"] ''
+    # Set git user name and email from sops secrets
+    if [ -f "${config.sops.secrets.github_name.path}" ] && [ -f "${config.sops.secrets.github_email.path}" ]; then
+      ${pkgs.git}/bin/git config --global user.name "$(cat ${config.sops.secrets.github_name.path})"
+      ${pkgs.git}/bin/git config --global user.email "$(cat ${config.sops.secrets.github_email.path})"
+      echo "✅ Git user config updated from sops secrets"
+    fi
+    
+    # Set up git credentials from sops secrets
+    if [ -f "${config.sops.secrets.github_token.path}" ]; then
+      echo "https://$(cat ${config.sops.secrets.github_token.path}):x-oauth-basic@github.com" > ~/.git-credentials
+      echo "✅ Git credentials updated from sops secrets"
+    fi
+  '';
 
   programs.fish = {
     enable = true;

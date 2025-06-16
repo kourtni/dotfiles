@@ -15,11 +15,11 @@
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
     nixos-wsl.inputs.nixpkgs.follows = "nixpkgs";
 
-    # sops-nix.url = "github:Mic92/sops-nix";
-    # sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, ... }: 
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, sops-nix, ... }: 
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
@@ -46,11 +46,11 @@
           nixos-wsl.nixosModules.default
           ./nixos/configuration.nix
           home-manager.nixosModules.home-manager
-          # sops-nix.nixosModules.sops
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.users.kourtni = import ./home/default.nix;
+            home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
           }
         ];
       };
@@ -58,7 +58,10 @@
       # This is for `home-manager switch --flake`
       homeConfigurations.kourtni = home-manager.lib.homeManagerConfiguration {
         pkgs = pkgs;
-        modules = [ ./home/default.nix ];
+        modules = [ 
+          ./home/default.nix 
+          sops-nix.homeManagerModules.sops
+        ];
       };
 
       # Make home-manager accessible via nix run and nix shell
