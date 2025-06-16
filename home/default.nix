@@ -6,7 +6,7 @@ in
 {
   imports = [
     # sops-nix.homeManagerModules.sops
-    (import ./programs.nix { inherit pkgs home-manager; })
+    (import ./programs.nix { inherit config pkgs home-manager; })
     # ./dotfiles.nix
     ./hosts/default.nix
   ];

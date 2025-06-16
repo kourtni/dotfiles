@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
 {
   
@@ -33,6 +33,7 @@
     functions = {
       ll = "ls -l";
       gs = "git status";
+      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles --recreate-lock-file";
     };
   };
 
@@ -48,11 +49,63 @@
     curl
     fish
     htop
+    nodejs_22
+    nodePackages.npm
     vim
+
+    # fonts
     nerd-fonts._0xproto
     nerd-fonts.droid-sans-mono
     nerd-fonts.fira-code
     nerd-fonts.jetbrains-mono
     nerd-fonts.hack
   ];
+
+  # Add npm global bin to PATH
+  home.sessionPath = [
+    "$HOME/.npm-global/bin"
+  ];
+
+  # Set up npm configuration
+  home.file.".npmrc".text = ''
+    prefix=~/.npm-global
+    update-notifier=false
+  '';
+
+  # REPRODUCIBLE: Auto-install Claude Code via Home Manager activation
+  home.activation.claudeCode = config.lib.dag.entryAfter ["writeBoundary"] ''
+    set -e  # Exit on any error
+    
+    echo "🔧 Setting up Claude Code (v6)..."
+    
+    # Create npm global directory in home
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$HOME/.npm-global"
+    
+    # Add Node.js and npm to PATH for this activation script
+    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
+    
+    echo "✅ node found: $(which node)"
+    echo "✅ npm found: $(which npm)"
+    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
+    
+    # Install or update Claude Code
+    if [ ! -f "$HOME/.npm-global/bin/claude" ]; then
+      echo "📦 Installing Claude Code..."
+      npm install -g @anthropic-ai/claude-code || {
+        echo "❌ Failed to install Claude Code"
+        exit 1
+      }
+      echo "✅ Claude Code installed successfully!"
+    else
+      echo "🔄 Claude Code already installed, checking for updates..."
+      npm update -g @anthropic-ai/claude-code || {
+        echo "⚠️  Failed to update Claude Code, but continuing..."
+      }
+    fi
+    
+    echo "📋 Contents of ~/.npm-global/bin/:"
+    ls -la "$HOME/.npm-global/bin/" || echo "Directory doesn't exist yet"
+  '';
+
 }

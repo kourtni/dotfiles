@@ -1,0 +1,5 @@
+# Secrets
+secrets.yaml
+
+# npm global packages
+.npm-global/
