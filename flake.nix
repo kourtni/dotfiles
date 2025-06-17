@@ -17,9 +17,12 @@
 
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    flake-programs-sqlite.url = "github:wamserma/flake-programs-sqlite";
+    flake-programs-sqlite.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, sops-nix, ... }: 
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, sops-nix, flake-programs-sqlite, ... }: 
     let
       # Supported systems
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
@@ -51,6 +54,7 @@
           })
 
           nixos-wsl.nixosModules.default
+          flake-programs-sqlite.nixosModules.programs-sqlite
           ./nixos/configuration.nix
           home-manager.nixosModules.home-manager
           {
