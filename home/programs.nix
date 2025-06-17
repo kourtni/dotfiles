@@ -99,7 +99,7 @@ in
     functions = {
       ll = "ls -l";
       gs = "git status";
-      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles --recreate-lock-file";
+      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles";
     };
   };
 
