@@ -268,6 +268,14 @@ Edit `home/programs.nix` to customize fish shell, git, or other programs.
 1. **Secrets not decrypting**: Ensure your age key is in `~/.config/sops/age/keys.txt`
 2. **VS Code not in PATH**: Check platform detection with `echo $SYSTEM_TYPE`
 3. **Permission errors**: Ensure Nix has proper permissions for your user
+4. **`code` command not found in Fish shell**: On WSL systems, VS Code's shell script may not execute properly in Fish. Create a Fish function to wrap the command:
+   ```bash
+   mkdir -p ~/.config/fish/functions
+   echo 'function code
+       "/mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Microsoft VS Code/bin/code" $argv
+   end' > ~/.config/fish/functions/code.fish
+   ```
+   Replace `YOUR_USERNAME` with your Windows username. This creates a Fish function that properly executes the VS Code command.
 
 ### Debug Commands
 
