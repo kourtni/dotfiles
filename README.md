@@ -277,6 +277,24 @@ Edit `home/programs.nix` to customize fish shell, git, or other programs.
    ```
    Replace `YOUR_USERNAME` with your Windows username. This creates a Fish function that properly executes the VS Code command.
 
+5. **VS Code Remote-WSL fails on NixOS** with error "Could not start dynamically linked executable": This occurs because VS Code's node binary cannot find required shared libraries on NixOS. To fix:
+   
+   a. Create the `server-env-setup` script that VS Code will run automatically:
+   ```bash
+   # Copy the server-env-setup script from sonowz/vscode-remote-wsl-nixos
+   curl -o ~/.vscode-server/server-env-setup https://raw.githubusercontent.com/sonowz/vscode-remote-wsl-nixos/master/server-env-setup
+   ```
+   
+   b. If you still get "libstdc++.so.6: cannot open shared object file", manually patch the node binary:
+   ```bash
+   # Patch the VS Code server node binary with correct library paths  
+   nix shell nixpkgs#patchelf nixpkgs#stdenv.cc -c patchelf --set-rpath "$(nix eval --raw nixpkgs#stdenv.cc.cc.lib)/lib/" ~/.vscode-server/bin/*/node
+   ```
+   
+   c. Try `code .` again - it should now work properly.
+   
+   Note: You may need to repeat step (b) after VS Code updates, as new versions will download fresh unpatched binaries.
+
 ### Debug Commands
 
 ```bash
