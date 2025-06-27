@@ -152,4 +152,40 @@ in
     ls -la "$HOME/.npm-global/bin/" || echo "Directory doesn't exist yet"
   '';
 
+  # REPRODUCIBLE: Auto-install Google Gemini CLI via Home Manager activation
+  home.activation.geminiCLI = config.lib.dag.entryAfter ["writeBoundary"] ''
+    set -e  # Exit on any error
+    
+    echo "🔧 Setting up Google Gemini CLI..."
+    
+    # Create npm global directory in home
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$HOME/.npm-global"
+    
+    # Add Node.js and npm to PATH for this activation script
+    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
+    
+    echo "✅ node found: $(which node)"
+    echo "✅ npm found: $(which npm)"
+    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
+    
+    # Install or update Google Gemini CLI
+    if [ ! -f "$HOME/.npm-global/bin/gemini" ]; then
+      echo "📦 Installing Google Gemini CLI..."
+      npm install -g @google/gemini-cli || {
+        echo "❌ Failed to install Google Gemini CLI"
+        exit 1
+      }
+      echo "✅ Google Gemini CLI installed successfully!"
+    else
+      echo "🔄 Google Gemini CLI already installed, checking for updates..."
+      npm update -g @google/gemini-cli || {
+        echo "⚠️  Failed to update Google Gemini CLI, but continuing..."
+      }
+    fi
+    
+    echo "📋 Contents of ~/.npm-global/bin/:"
+    ls -la "$HOME/.npm-global/bin/" || echo "Directory doesn't exist yet"
+  '';
+
 }
