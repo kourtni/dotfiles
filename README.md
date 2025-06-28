@@ -84,6 +84,28 @@ dotfiles/
 └── README.md
 ```
 
+## NixOS Hardware Configuration
+
+For NixOS systems, this repository expects a `hardware-configuration.nix` file to be present in the `nixos/` directory. This file is machine-specific and should **not** be committed to the repository.
+
+**To set up your `hardware-configuration.nix`:**
+
+1.  **Generate the file on your NixOS system**:
+    ```bash
+    sudo nixos-generate-config --show-configuration > /tmp/hardware-configuration.nix
+    ```
+2.  **Copy it to your dotfiles**:
+    ```bash
+    cp /tmp/hardware-configuration.nix nixos/hardware-configuration.nix
+    ```
+    (Ensure you are in the root of your dotfiles repository when running this command.)
+3.  **Add it to your local `.gitignore`**:
+    To prevent accidentally committing your machine-specific hardware configuration, add the following line to your `.gitignore` file:
+    ```
+    nixos/hardware-configuration.nix
+    ```
+    This step is crucial for maintaining the portability of your dotfiles.
+
 ## 🔧 Configuration Details
 
 ### Shell Environment

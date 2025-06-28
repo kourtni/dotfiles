@@ -13,7 +13,7 @@ in
 
 {
   imports = [
-    /etc/nixos/hardware-configuration.nix
+    ./hardware-configuration.nix
   ];
 
   wsl.enable = true;
