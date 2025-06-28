@@ -214,8 +214,10 @@ home-manager switch --flake .#username@aarch64-linux   # Linux ARM
 
 ```bash
 # Rebuild NixOS configuration
-sudo nixos-rebuild switch --flake .#wsl
+sudo nixos-rebuild switch --impure --flake .#wsl
 ```
+We need `--impure` because our build build relies on the host specific, locally
+installed `/etc/nixos/hardware-configuration.nix` file.
 
 ## ⚙️ User Configuration
 
