@@ -8,3 +8,6 @@ user-config.nix
 # npm global packages
 .npm-global/
 
+# NixOS Hardware Configuration
+nixos/hardware-configuration.nix
+
