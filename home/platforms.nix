@@ -41,6 +41,7 @@ in
       htop
       nodejs_22
       nodePackages.npm
+      ollama
       vim
       
       # fonts
