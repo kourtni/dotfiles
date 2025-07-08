@@ -1,5 +1,5 @@
 {
-  format = "[](color_orange)$os$username[](bg:color_yellow fg:color_orange)$directory[](fg:color_yellow bg:color_aqua)$git_branch$git_status[](fg:color_aqua bg:color_blue)$c$cpp$rust$golang$nodejs$php$java$kotlin$haskell$python[](fg:color_blue bg:color_bg3)$docker_context$conda$pixi[](fg:color_bg3 bg:color_bg1)$time[ ](fg:color_bg1)$line_break$character";
+  format = "[](color_orange)$os$username[](bg:color_yellow fg:color_orange)$directory[](fg:color_yellow bg:color_aqua)$git_branch$git_status[](fg:color_aqua bg:color_blue)$c$cpp$rust$golang$nodejs$php$java$kotlin$haskell$python[](fg:color_blue bg:color_bg3)$docker_context$conda$pixi[](fg:color_bg3 bg:color_bg1)$time$cmd_duration[ ](fg:color_bg1)$line_break$character";
   palette = "gruvbox_dark";
   palettes =   {
     gruvbox_dark =     {
@@ -150,5 +150,12 @@
     vimcmd_replace_one_symbol = "[](bold fg:color_purple)";
     vimcmd_replace_symbol = "[](bold fg:color_purple)";
     vimcmd_visual_symbol = "[](bold fg:color_yellow)";
+  };
+  cmd_duration =   {
+    min_time = 1; # Display time if it exceeds 1 millisecond
+    show_milliseconds = true;
+    disabled = false;
+    style = "bg:color_bg1";
+    format = "[[🕙 $duration ](fg:color_red bg:color_bg1)]($style)";
   };
 }
