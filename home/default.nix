@@ -9,6 +9,7 @@ in
     (import ./programs.nix { inherit config pkgs lib; })
     ./platforms.nix
     ./hosts/default.nix
+    ./mcp-servers.nix
   ];
 
   # sops-nix configuration
@@ -24,6 +25,9 @@ in
       };
       github_token = {
         key = "github/token";
+      };
+      github_mcp_token = {
+        key = "github/mcp_token";
       };
     };
   };
