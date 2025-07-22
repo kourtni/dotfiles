@@ -1,6 +1,5 @@
 # Secrets
 secrets.yaml
-secrets.enc.yaml
 
 # Personal Config Files
 user-config.nix
