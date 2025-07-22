@@ -84,6 +84,13 @@ dotfiles/
 └── README.md
 ```
 
+## 🖥️ MCP Server Management
+
+This repository can also be used to manage Model Context Protocol (MCP) server configurations.
+
+- **Configuration**: Server details are defined in `home/mcp-servers.nix`.
+- **Setup**: The `scripts/setup-mcp.sh` script applies the configurations to the servers.
+
 ## NixOS Hardware Configuration
 
 For NixOS systems, this repository expects a `hardware-configuration.nix` file to be present in the `nixos/` directory. This file is machine-specific and should **not** be committed to the repository.
