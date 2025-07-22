@@ -4,6 +4,20 @@ let
   # Platform detection
   isLinux = pkgs.stdenv.isLinux;
   isDarwin = pkgs.stdenv.isDarwin;
+  
+  # Define the wrapper script that handles GitHub token loading
+  shadcnUiMcpServerWrapper = pkgs.writeShellScriptBin "shadcn-ui-mcp-server" ''
+    # Load GitHub token from sops if available
+    if [ -f "${config.sops.secrets.github_mcp_token.path}" ]; then
+      export GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ${config.sops.secrets.github_mcp_token.path})"
+      echo "✅ Using GitHub MCP token from sops"
+    else
+      echo "ℹ️  No GitHub MCP token found, running with default rate limits"
+    fi
+    
+    # Run the MCP server
+    exec ${pkgs.nodejs_22}/bin/npx @jpisnice/shadcn-ui-mcp-server "$@"
+  '';
 in
 {
   # Install shadcn-ui-mcp-server via npm
@@ -91,21 +105,17 @@ in
     config = {
       Label = "com.github.jpisnice.shadcn-ui-mcp-server";
       ProgramArguments = [
-        "${pkgs.nodejs_22}/bin/npx"
-        "@jpisnice/shadcn-ui-mcp-server"
+        "${shadcnUiMcpServerWrapper}/bin/shadcn-ui-mcp-server"
       ];
       
       # Set up environment
       EnvironmentVariables = {
         NPM_CONFIG_PREFIX = "%h/.npm-global";
         PATH = "${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin";
-        # Note: For macOS, we'll need to handle the GitHub token differently
-        # as launchd doesn't support reading from files directly
       };
-      
-      # Run on demand
-      RunAtLoad = false;
-      KeepAlive = false;
+
+      RunAtLoad = true;
+      KeepAlive = true;
       
       # Logging
       StandardOutPath = "%h/Library/Logs/shadcn-ui-mcp-server.log";
@@ -113,27 +123,16 @@ in
     };
   };
 
-  # Create a wrapper script that can be used to start the MCP server with the GitHub token
+  # Add the wrapper script to home packages
   home.packages = [
-    (pkgs.writeShellScriptBin "shadcn-ui-mcp-server" ''
-      # Load GitHub token from sops if available
-      if [ -f "${config.sops.secrets.github_mcp_token.path}" ]; then
-        export GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ${config.sops.secrets.github_mcp_token.path})"
-        echo "✅ Using GitHub MCP token from sops"
-      else
-        echo "ℹ️  No GitHub MCP token found, running with default rate limits"
-      fi
-      
-      # Run the MCP server
-      exec ${pkgs.nodejs_22}/bin/npx @jpisnice/shadcn-ui-mcp-server "$@"
-    '')
+    shadcnUiMcpServerWrapper
   ];
 
   # Add information about the MCP server to the user's shell
   programs.fish.shellInit = lib.mkIf config.programs.fish.enable ''
     # shadcn-ui-mcp-server info
     function mcp-shadcn-status
-      if command -v systemctl &> /dev/null
+      if command -v systemctl >/dev/null 2>&1
         systemctl --user status shadcn-ui-mcp-server
       else if test (uname) = "Darwin"
         launchctl list | grep shadcn-ui-mcp-server
@@ -143,7 +142,7 @@ in
     end
     
     function mcp-shadcn-start
-      if command -v systemctl &> /dev/null
+      if command -v systemctl >/dev/null 2>&1
         systemctl --user start shadcn-ui-mcp-server
       else if test (uname) = "Darwin"
         launchctl load ~/Library/LaunchAgents/com.github.jpisnice.shadcn-ui-mcp-server.plist
@@ -153,7 +152,7 @@ in
     end
     
     function mcp-shadcn-stop
-      if command -v systemctl &> /dev/null
+      if command -v systemctl >/dev/null 2>&1
         systemctl --user stop shadcn-ui-mcp-server
       else if test (uname) = "Darwin"
         launchctl unload ~/Library/LaunchAgents/com.github.jpisnice.shadcn-ui-mcp-server.plist
