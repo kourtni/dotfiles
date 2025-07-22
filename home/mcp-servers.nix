@@ -62,25 +62,14 @@ in
 
     Service = {
       Type = "simple";
-      # Use npx to run the server
-      ExecStart = "${pkgs.nodejs_22}/bin/npx @jpisnice/shadcn-ui-mcp-server";
+      # Use the wrapper script for consistency with macOS
+      ExecStart = "${shadcnUiMcpServerWrapper}/bin/shadcn-ui-mcp-server";
       
-      # Set up environment with GitHub token from sops
+      # Set up environment
       Environment = [
         "NPM_CONFIG_PREFIX=%h/.npm-global"
         "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
       ];
-      
-      # Load GitHub token from sops secret if available
-      ExecStartPre = "${pkgs.writeShellScript "setup-github-token" ''
-        if [ -f "${config.sops.secrets.github_mcp_token.path}" ]; then
-          echo "GITHUB_PERSONAL_ACCESS_TOKEN=$(cat ${config.sops.secrets.github_mcp_token.path})" > %t/shadcn-ui-mcp-server.env
-        else
-          echo "# No GitHub MCP token found" > %t/shadcn-ui-mcp-server.env
-        fi
-      ''}";
-      
-      EnvironmentFile = "-%t/shadcn-ui-mcp-server.env";
       
       # Restart on failure
       Restart = "on-failure";
@@ -90,7 +79,10 @@ in
       PrivateTmp = true;
       ProtectSystem = "strict";
       ProtectHome = "read-only";
-      ReadWritePaths = "%h/.npm-global";
+      ReadWritePaths = [
+        "%h/.npm-global"
+        "%h/.npm"
+      ];
       NoNewPrivileges = true;
     };
 
@@ -114,8 +106,8 @@ in
         PATH = "${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin";
       };
 
-      RunAtLoad = true;
-      KeepAlive = true;
+      RunAtLoad = false;
+      KeepAlive = false;
       
       # Logging
       StandardOutPath = "%h/Library/Logs/shadcn-ui-mcp-server.log";

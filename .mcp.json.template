@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "shadcn-ui-mcp-server": {
+      "type": "stdio",
+      "command": "/home/kourtni/.nix-profile/bin/shadcn-ui-mcp-server",
+      "args": [],
+      "env": {}
+    }
+  }
+}
