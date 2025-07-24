@@ -18,6 +18,12 @@ let
     # Run the MCP server
     exec ${pkgs.nodejs_22}/bin/npx @jpisnice/shadcn-ui-mcp-server "$@"
   '';
+  
+  # Define the wrapper script for context7
+  context7McpServerWrapper = pkgs.writeShellScriptBin "context7-mcp-server" ''
+    # Run the context7 MCP server
+    exec ${pkgs.nodejs_22}/bin/npx -y @upstash/context7-mcp "$@"
+  '';
 in
 {
   # Install shadcn-ui-mcp-server via npm
@@ -53,6 +59,39 @@ in
     fi
   '';
 
+  # Install context7-mcp-server via npm
+  home.activation.context7McpServer = config.lib.dag.entryAfter ["writeBoundary"] ''
+    set -e  # Exit on any error
+    
+    echo "🔧 Setting up context7-mcp-server..."
+    
+    # Create npm global directory in home
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$HOME/.npm-global"
+    
+    # Add Node.js and npm to PATH for this activation script
+    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
+    
+    echo "✅ node found: $(which node)"
+    echo "✅ npm found: $(which npm)"
+    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
+    
+    # Install or update context7-mcp-server
+    if ! npm list -g @upstash/context7-mcp >/dev/null 2>&1; then
+      echo "📦 Installing context7-mcp-server..."
+      npm install -g @upstash/context7-mcp || {
+        echo "❌ Failed to install context7-mcp-server"
+        exit 1
+      }
+      echo "✅ context7-mcp-server installed successfully!"
+    else
+      echo "🔄 context7-mcp-server already installed, checking for updates..."
+      npm update -g @upstash/context7-mcp || {
+        echo "⚠️  Failed to update context7-mcp-server, but continuing..."
+      }
+    fi
+  '';
+
   # Create systemd user service for Linux/WSL
   systemd.user.services.shadcn-ui-mcp-server = lib.mkIf isLinux {
     Unit = {
@@ -64,6 +103,43 @@ in
       Type = "simple";
       # Use the wrapper script for consistency with macOS
       ExecStart = "${shadcnUiMcpServerWrapper}/bin/shadcn-ui-mcp-server";
+      
+      # Set up environment
+      Environment = [
+        "NPM_CONFIG_PREFIX=%h/.npm-global"
+        "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
+      ];
+      
+      # Restart on failure
+      Restart = "on-failure";
+      RestartSec = "5s";
+      
+      # Security hardening
+      PrivateTmp = true;
+      ProtectSystem = "strict";
+      ProtectHome = "read-only";
+      ReadWritePaths = [
+        "%h/.npm-global"
+        "%h/.npm"
+      ];
+      NoNewPrivileges = true;
+    };
+
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
+  systemd.user.services.context7-mcp-server = lib.mkIf isLinux {
+    Unit = {
+      Description = "Context7 MCP Server";
+      Documentation = "https://github.com/upstash/context7";
+    };
+
+    Service = {
+      Type = "simple";
+      # Use the wrapper script
+      ExecStart = "${context7McpServerWrapper}/bin/context7-mcp-server";
       
       # Set up environment
       Environment = [
@@ -115,9 +191,33 @@ in
     };
   };
 
+  launchd.agents.context7-mcp-server = lib.mkIf isDarwin {
+    enable = true;
+    config = {
+      Label = "com.upstash.context7-mcp-server";
+      ProgramArguments = [
+        "${context7McpServerWrapper}/bin/context7-mcp-server"
+      ];
+      
+      # Set up environment
+      EnvironmentVariables = {
+        NPM_CONFIG_PREFIX = "%h/.npm-global";
+        PATH = "${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin";
+      };
+
+      RunAtLoad = false;
+      KeepAlive = false;
+      
+      # Logging
+      StandardOutPath = "%h/Library/Logs/context7-mcp-server.log";
+      StandardErrorPath = "%h/Library/Logs/context7-mcp-server.error.log";
+    };
+  };
+
   # Add the wrapper script to home packages
   home.packages = [
     shadcnUiMcpServerWrapper
+    context7McpServerWrapper
   ];
 
   # Add information about the MCP server to the user's shell
@@ -148,6 +248,37 @@ in
         systemctl --user stop shadcn-ui-mcp-server
       else if test (uname) = "Darwin"
         launchctl unload ~/Library/LaunchAgents/com.github.jpisnice.shadcn-ui-mcp-server.plist
+      else
+        echo "Use Ctrl+C to stop the MCP server"
+      end
+    end
+    
+    # context7-mcp-server info
+    function mcp-context7-status
+      if command -v systemctl >/dev/null 2>&1
+        systemctl --user status context7-mcp-server
+      else if test (uname) = "Darwin"
+        launchctl list | grep context7-mcp-server
+      else
+        echo "MCP server status not available on this platform"
+      end
+    end
+    
+    function mcp-context7-start
+      if command -v systemctl >/dev/null 2>&1
+        systemctl --user start context7-mcp-server
+      else if test (uname) = "Darwin"
+        launchctl load ~/Library/LaunchAgents/com.upstash.context7-mcp-server.plist
+      else
+        context7-mcp-server
+      end
+    end
+    
+    function mcp-context7-stop
+      if command -v systemctl >/dev/null 2>&1
+        systemctl --user stop context7-mcp-server
+      else if test (uname) = "Darwin"
+        launchctl unload ~/Library/LaunchAgents/com.upstash.context7-mcp-server.plist
       else
         echo "Use Ctrl+C to stop the MCP server"
       end

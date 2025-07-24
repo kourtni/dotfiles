@@ -1,5 +1,17 @@
 {
   "mcpServers": {
+    "context7": {
+      "type": "stdio",
+      "command": "__HOME__/.nix-profile/bin/context7-mcp-server",
+      "args": [],
+      "env": {}
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "env": {}
+    },
     "shadcn-ui-mcp-server": {
       "type": "stdio",
       "command": "__HOME__/.nix-profile/bin/shadcn-ui-mcp-server",
