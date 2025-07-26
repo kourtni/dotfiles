@@ -25,11 +25,48 @@ let
     exec ${pkgs.nodejs_22}/bin/npx -y @upstash/context7-mcp "$@"
   '';
   
-  # Define the wrapper script for mcp-testing-sensei
-  testingSenseiMcpServerWrapper = pkgs.writeShellScriptBin "mcp-testing-sensei" ''
-    # Run the mcp-testing-sensei MCP server
-    exec ${pkgs.nodejs_22}/bin/npx -y @kourtni/mcp-testing-sensei "$@"
-  '';
+  # Define the mcp-testing-sensei binary
+  mcpTestingSenseiBinary = pkgs.fetchurl {
+    url = "https://github.com/kourtni/mcp-testing-sensei/releases/download/v0.2.1/mcp-testing-sensei-${if pkgs.stdenv.isDarwin then "macos" else "linux"}";
+    sha256 = if pkgs.stdenv.isDarwin 
+      then "1yrqmgyzf7zffl9vzdjz7v6ipdxrjvyw21i57gdhdwdis7y8f0qp"  # Need to update this for macOS with executable=true
+      else "sha256-aguZR8/wFlM3aChWIIRXzpu/QvYgDrRkaq3rrESscNs=";
+    executable = true;
+  };
+  
+  # For Linux, use buildFHSEnv to provide a standard Linux environment
+  mcpTestingSenseiFHS = if isLinux then pkgs.buildFHSEnv {
+    name = "mcp-testing-sensei-fhs";
+    targetPkgs = pkgs: with pkgs; [
+      glibc
+      gcc-unwrapped.lib
+      zlib
+      # Common Python dependencies
+      expat
+      libffi
+      openssl
+      ncurses6
+      readline
+      bzip2
+      sqlite
+      xz
+    ];
+    runScript = "${mcpTestingSenseiBinary}";
+  } else null;
+  
+  # Create the final package
+  mcpTestingSensei = if isLinux then 
+    pkgs.writeShellScriptBin "mcp-testing-sensei" ''
+      exec ${mcpTestingSenseiFHS}/bin/mcp-testing-sensei-fhs "$@"
+    ''
+  else if isDarwin then
+    # For macOS, the binary should work directly
+    pkgs.runCommand "mcp-testing-sensei" {} ''
+      mkdir -p $out/bin
+      cp ${mcpTestingSenseiBinary} $out/bin/mcp-testing-sensei
+      chmod +x $out/bin/mcp-testing-sensei
+    ''
+  else throw "Unsupported platform";
 in
 {
   # Install shadcn-ui-mcp-server via npm
@@ -98,38 +135,6 @@ in
     fi
   '';
 
-  # Install mcp-testing-sensei via npm
-  home.activation.testingSenseiMcpServer = config.lib.dag.entryAfter ["writeBoundary"] ''
-    set -e  # Exit on any error
-    
-    echo "🔧 Setting up mcp-testing-sensei..."
-    
-    # Create npm global directory in home
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$HOME/.npm-global"
-    
-    # Add Node.js and npm to PATH for this activation script
-    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
-    
-    echo "✅ node found: $(which node)"
-    echo "✅ npm found: $(which npm)"
-    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
-    
-    # Install or update mcp-testing-sensei
-    if ! npm list -g @kourtni/mcp-testing-sensei >/dev/null 2>&1; then
-      echo "📦 Installing mcp-testing-sensei..."
-      npm install -g @kourtni/mcp-testing-sensei || {
-        echo "❌ Failed to install mcp-testing-sensei"
-        exit 1
-      }
-      echo "✅ mcp-testing-sensei installed successfully!"
-    else
-      echo "🔄 mcp-testing-sensei already installed, checking for updates..."
-      npm update -g @kourtni/mcp-testing-sensei || {
-        echo "⚠️  Failed to update mcp-testing-sensei, but continuing..."
-      }
-    fi
-  '';
 
   # Create systemd user service for Linux/WSL
   systemd.user.services.shadcn-ui-mcp-server = lib.mkIf isLinux {
@@ -214,13 +219,12 @@ in
 
     Service = {
       Type = "simple";
-      # Use the wrapper script
-      ExecStart = "${testingSenseiMcpServerWrapper}/bin/mcp-testing-sensei";
+      # Use the standalone binary directly
+      ExecStart = "${mcpTestingSensei}/bin/mcp-testing-sensei";
       
-      # Set up environment
+      # Minimal environment setup - no npm or node required
       Environment = [
-        "NPM_CONFIG_PREFIX=%h/.npm-global"
-        "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
+        "PATH=/usr/bin:/bin"
       ];
       
       # Restart on failure
@@ -231,10 +235,6 @@ in
       PrivateTmp = true;
       ProtectSystem = "strict";
       ProtectHome = "read-only";
-      ReadWritePaths = [
-        "%h/.npm-global"
-        "%h/.npm"
-      ];
       NoNewPrivileges = true;
     };
 
@@ -295,13 +295,12 @@ in
     config = {
       Label = "com.kourtni.mcp-testing-sensei";
       ProgramArguments = [
-        "${testingSenseiMcpServerWrapper}/bin/mcp-testing-sensei"
+        "${mcpTestingSensei}/bin/mcp-testing-sensei"
       ];
       
-      # Set up environment
+      # Minimal environment setup - no npm or node required
       EnvironmentVariables = {
-        NPM_CONFIG_PREFIX = "%h/.npm-global";
-        PATH = "${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin";
+        PATH = "/usr/bin:/bin";
       };
 
       RunAtLoad = false;
@@ -313,11 +312,11 @@ in
     };
   };
 
-  # Add the wrapper script to home packages
+  # Add the wrapper scripts and standalone binary to home packages
   home.packages = [
     shadcnUiMcpServerWrapper
     context7McpServerWrapper
-    testingSenseiMcpServerWrapper
+    mcpTestingSensei
   ];
 
   # Add information about the MCP server to the user's shell
