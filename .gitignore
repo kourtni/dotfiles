@@ -10,3 +10,5 @@ user-config.nix
 # NixOS Hardware Configuration
 nixos/hardware-configuration.nix
 
+# Local MCP configurations
+.mcp.json

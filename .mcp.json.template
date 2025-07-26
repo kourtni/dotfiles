@@ -6,6 +6,10 @@
       "args": [],
       "env": {}
     },
+    "nixos": {
+      "command": "nix",
+      "args": ["run", "github:utensils/mcp-nixos", "--"]
+    },
     "playwright": {
       "type": "stdio",
       "command": "npx",
