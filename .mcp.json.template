@@ -17,6 +17,12 @@
       "command": "__HOME__/.nix-profile/bin/shadcn-ui-mcp-server",
       "args": [],
       "env": {}
+    },
+    "testing-sensei": {
+      "type": "stdio",
+      "command": "__HOME__/.nix-profile/bin/mcp-testing-sensei",
+      "args": [],
+      "env": {}
     }
   }
 }

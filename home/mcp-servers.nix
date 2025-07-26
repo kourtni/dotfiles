@@ -24,6 +24,12 @@ let
     # Run the context7 MCP server
     exec ${pkgs.nodejs_22}/bin/npx -y @upstash/context7-mcp "$@"
   '';
+  
+  # Define the wrapper script for mcp-testing-sensei
+  testingSenseiMcpServerWrapper = pkgs.writeShellScriptBin "mcp-testing-sensei" ''
+    # Run the mcp-testing-sensei MCP server
+    exec ${pkgs.nodejs_22}/bin/npx -y @kourtni/mcp-testing-sensei "$@"
+  '';
 in
 {
   # Install shadcn-ui-mcp-server via npm
@@ -88,6 +94,39 @@ in
       echo "🔄 context7-mcp-server already installed, checking for updates..."
       npm update -g @upstash/context7-mcp || {
         echo "⚠️  Failed to update context7-mcp-server, but continuing..."
+      }
+    fi
+  '';
+
+  # Install mcp-testing-sensei via npm
+  home.activation.testingSenseiMcpServer = config.lib.dag.entryAfter ["writeBoundary"] ''
+    set -e  # Exit on any error
+    
+    echo "🔧 Setting up mcp-testing-sensei..."
+    
+    # Create npm global directory in home
+    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+    mkdir -p "$HOME/.npm-global"
+    
+    # Add Node.js and npm to PATH for this activation script
+    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
+    
+    echo "✅ node found: $(which node)"
+    echo "✅ npm found: $(which npm)"
+    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
+    
+    # Install or update mcp-testing-sensei
+    if ! npm list -g @kourtni/mcp-testing-sensei >/dev/null 2>&1; then
+      echo "📦 Installing mcp-testing-sensei..."
+      npm install -g @kourtni/mcp-testing-sensei || {
+        echo "❌ Failed to install mcp-testing-sensei"
+        exit 1
+      }
+      echo "✅ mcp-testing-sensei installed successfully!"
+    else
+      echo "🔄 mcp-testing-sensei already installed, checking for updates..."
+      npm update -g @kourtni/mcp-testing-sensei || {
+        echo "⚠️  Failed to update mcp-testing-sensei, but continuing..."
       }
     fi
   '';
@@ -167,6 +206,43 @@ in
     };
   };
 
+  systemd.user.services.mcp-testing-sensei = lib.mkIf isLinux {
+    Unit = {
+      Description = "MCP Testing Sensei Server";
+      Documentation = "https://github.com/kourtni/mcp-testing-sensei";
+    };
+
+    Service = {
+      Type = "simple";
+      # Use the wrapper script
+      ExecStart = "${testingSenseiMcpServerWrapper}/bin/mcp-testing-sensei";
+      
+      # Set up environment
+      Environment = [
+        "NPM_CONFIG_PREFIX=%h/.npm-global"
+        "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
+      ];
+      
+      # Restart on failure
+      Restart = "on-failure";
+      RestartSec = "5s";
+      
+      # Security hardening
+      PrivateTmp = true;
+      ProtectSystem = "strict";
+      ProtectHome = "read-only";
+      ReadWritePaths = [
+        "%h/.npm-global"
+        "%h/.npm"
+      ];
+      NoNewPrivileges = true;
+    };
+
+    Install = {
+      WantedBy = [ "default.target" ];
+    };
+  };
+
   # For macOS, create a launchd configuration
   launchd.agents.shadcn-ui-mcp-server = lib.mkIf isDarwin {
     enable = true;
@@ -214,10 +290,34 @@ in
     };
   };
 
+  launchd.agents.mcp-testing-sensei = lib.mkIf isDarwin {
+    enable = true;
+    config = {
+      Label = "com.kourtni.mcp-testing-sensei";
+      ProgramArguments = [
+        "${testingSenseiMcpServerWrapper}/bin/mcp-testing-sensei"
+      ];
+      
+      # Set up environment
+      EnvironmentVariables = {
+        NPM_CONFIG_PREFIX = "%h/.npm-global";
+        PATH = "${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin";
+      };
+
+      RunAtLoad = false;
+      KeepAlive = false;
+      
+      # Logging
+      StandardOutPath = "%h/Library/Logs/mcp-testing-sensei.log";
+      StandardErrorPath = "%h/Library/Logs/mcp-testing-sensei.error.log";
+    };
+  };
+
   # Add the wrapper script to home packages
   home.packages = [
     shadcnUiMcpServerWrapper
     context7McpServerWrapper
+    testingSenseiMcpServerWrapper
   ];
 
   # Add information about the MCP server to the user's shell
@@ -279,6 +379,37 @@ in
         systemctl --user stop context7-mcp-server
       else if test (uname) = "Darwin"
         launchctl unload ~/Library/LaunchAgents/com.upstash.context7-mcp-server.plist
+      else
+        echo "Use Ctrl+C to stop the MCP server"
+      end
+    end
+    
+    # mcp-testing-sensei info
+    function mcp-testing-sensei-status
+      if command -v systemctl >/dev/null 2>&1
+        systemctl --user status mcp-testing-sensei
+      else if test (uname) = "Darwin"
+        launchctl list | grep mcp-testing-sensei
+      else
+        echo "MCP server status not available on this platform"
+      end
+    end
+    
+    function mcp-testing-sensei-start
+      if command -v systemctl >/dev/null 2>&1
+        systemctl --user start mcp-testing-sensei
+      else if test (uname) = "Darwin"
+        launchctl load ~/Library/LaunchAgents/com.kourtni.mcp-testing-sensei.plist
+      else
+        mcp-testing-sensei
+      end
+    end
+    
+    function mcp-testing-sensei-stop
+      if command -v systemctl >/dev/null 2>&1
+        systemctl --user stop mcp-testing-sensei
+      else if test (uname) = "Darwin"
+        launchctl unload ~/Library/LaunchAgents/com.kourtni.mcp-testing-sensei.plist
       else
         echo "Use Ctrl+C to stop the MCP server"
       end

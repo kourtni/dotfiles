@@ -91,6 +91,33 @@ This repository can also be used to manage Model Context Protocol (MCP) server c
 - **Configuration**: Server details are defined in `home/mcp-servers.nix`.
 - **Setup**: The `scripts/setup-mcp.sh` script applies the configurations to the servers.
 
+### Available MCP Servers
+
+1. **shadcn-ui-mcp-server**: Access to shadcn/ui v4 components and blocks
+2. **context7**: Upstash Context7 MCP server for context management
+3. **playwright**: Browser automation and testing via Playwright
+4. **testing-sensei**: Enforces and guides unit testing principles in code generation
+
+### Managing MCP Servers
+
+Use the following fish shell functions to manage MCP servers:
+
+```bash
+# For each server (replace <server> with shadcn, context7, or testing-sensei):
+mcp-<server>-status   # Check server status
+mcp-<server>-start    # Start the server
+mcp-<server>-stop     # Stop the server
+```
+
+### Adding MCP Servers to Projects
+
+Run the setup script in any project directory:
+```bash
+~/dotfiles/scripts/setup-mcp.sh
+```
+
+This creates a `.mcp.json` file that configures Claude Code to use the available MCP servers.
+
 ## NixOS Hardware Configuration
 
 For NixOS systems, this repository expects a `hardware-configuration.nix` file to be present in the `nixos/` directory. This file is machine-specific and should **not** be committed to the repository.
