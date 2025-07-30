@@ -40,4 +40,13 @@ in
 
   # Platform-specific configurations are handled in platforms.nix
 
+  # Ensure sops-nix service waits for home directory to be ready
+  systemd.user.services.sops-nix = {
+    Unit = {
+      After = [ "graphical-session.target" ];
+      # Ensure the service starts after the file system is ready
+      RequiresMountsFor = [ config.home.homeDirectory ];
+    };
+  };
+
 }
