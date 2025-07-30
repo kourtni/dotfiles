@@ -100,6 +100,41 @@ in
       ll = "ls -l";
       gs = "git status";
       hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles";
+      # Portable VS Code launcher that works on any WSL system
+      code = ''
+        # Check if we're in WSL first
+        if not test -f /proc/sys/fs/binfmt_misc/WSLInterop
+            # Not in WSL, try native code command
+            command code $argv
+            return
+        end
+        
+        # Try to find VS Code in common Windows locations
+        set -l vscode_paths \
+            "/mnt/c/Program Files/Microsoft VS Code/bin/code" \
+            "/mnt/c/Program Files (x86)/Microsoft VS Code/bin/code" \
+            "/mnt/c/Users/$USER/AppData/Local/Programs/Microsoft VS Code/bin/code"
+        
+        # Also check with Windows username from Nix config
+        set -l win_user "${userConfig.windowsUsername}"
+        if test -n "$win_user"
+            set vscode_paths $vscode_paths "/mnt/c/Users/$win_user/AppData/Local/Programs/Microsoft VS Code/bin/code"
+        end
+        
+        # Try each path until we find one that exists
+        for vscode_path in $vscode_paths
+            if test -f "$vscode_path"
+                # Check if it starts with a shebang (shell script)
+                if head -n 1 "$vscode_path" 2>/dev/null | grep -q "^#!"
+                    "$vscode_path" $argv
+                    return
+                end
+            end
+        end
+        
+        echo "VS Code not found. Please ensure it's installed on Windows." >&2
+        return 1
+      '';
     };
   };
 
