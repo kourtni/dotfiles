@@ -5,6 +5,9 @@ let
   isLinux = pkgs.stdenv.isLinux;
   isDarwin = pkgs.stdenv.isDarwin;
   
+  # Import shared npm utilities
+  npmUtils = import ./npm-utils.nix { inherit pkgs; };
+  
   # Define the wrapper script that handles GitHub token loading
   shadcnUiMcpServerWrapper = pkgs.writeShellScriptBin "shadcn-ui-mcp-server" ''
     # Load GitHub token from sops if available
@@ -70,96 +73,22 @@ let
 in
 {
   # Install shadcn-ui-mcp-server via npm
-  home.activation.shadcnUiMcpServer = config.lib.dag.entryAfter ["writeBoundary"] ''
-    set -e  # Exit on any error
-    
-    echo "🔧 Setting up shadcn-ui-mcp-server..."
-    
-    # Create npm global directory in home
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$HOME/.npm-global"
-    
-    # Add Node.js and npm to PATH for this activation script
-    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
-    
-    echo "✅ node found: $(which node)"
-    echo "✅ npm found: $(which npm)"
-    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
-    
-    # Install or update shadcn-ui-mcp-server
-    if ! npm list -g @jpisnice/shadcn-ui-mcp-server >/dev/null 2>&1; then
-      echo "📦 Installing shadcn-ui-mcp-server..."
-      npm install -g @jpisnice/shadcn-ui-mcp-server || {
-        echo "❌ Failed to install shadcn-ui-mcp-server"
-        exit 1
-      }
-      echo "✅ shadcn-ui-mcp-server installed successfully!"
-    else
-      echo "🔄 shadcn-ui-mcp-server already installed, checking for updates..."
-      # Check if update is available
-      CURRENT_VERSION=$(npm list -g @jpisnice/shadcn-ui-mcp-server --json 2>/dev/null | jq -r '.dependencies["@jpisnice/shadcn-ui-mcp-server"].version' 2>/dev/null || echo "0.0.0")
-      LATEST_VERSION=$(npm view @jpisnice/shadcn-ui-mcp-server version 2>/dev/null || echo "0.0.0")
-      
-      if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "0.0.0" ]; then
-        echo "📦 Update available: $CURRENT_VERSION → $LATEST_VERSION"
-        # Clean up any leftover temp directories first
-        rm -rf $HOME/.npm-global/lib/node_modules/@jpisnice/.shadcn-ui-mcp-server-* 2>/dev/null || true
-        # Clean reinstall to avoid ENOTEMPTY errors
-        npm uninstall -g @jpisnice/shadcn-ui-mcp-server 2>/dev/null || true
-        npm install -g @jpisnice/shadcn-ui-mcp-server || {
-          echo "⚠️  Failed to update shadcn-ui-mcp-server, but continuing..."
-        }
-      else
-        echo "✅ shadcn-ui-mcp-server is up to date (version $CURRENT_VERSION)"
-      fi
-    fi
-  '';
+  home.activation.shadcnUiMcpServer = config.lib.dag.entryAfter ["writeBoundary"] (
+    npmUtils.mkNpmPackageActivation {
+      packageName = "@jpisnice/shadcn-ui-mcp-server";
+      binaryName = "shadcn-mcp";
+      displayName = "shadcn-ui-mcp-server";
+    }
+  );
 
   # Install context7-mcp-server via npm
-  home.activation.context7McpServer = config.lib.dag.entryAfter ["writeBoundary"] ''
-    set -e  # Exit on any error
-    
-    echo "🔧 Setting up context7-mcp-server..."
-    
-    # Create npm global directory in home
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$HOME/.npm-global"
-    
-    # Add Node.js and npm to PATH for this activation script
-    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
-    
-    echo "✅ node found: $(which node)"
-    echo "✅ npm found: $(which npm)"
-    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
-    
-    # Install or update context7-mcp-server
-    if ! npm list -g @upstash/context7-mcp >/dev/null 2>&1; then
-      echo "📦 Installing context7-mcp-server..."
-      npm install -g @upstash/context7-mcp || {
-        echo "❌ Failed to install context7-mcp-server"
-        exit 1
-      }
-      echo "✅ context7-mcp-server installed successfully!"
-    else
-      echo "🔄 context7-mcp-server already installed, checking for updates..."
-      # Check if update is available
-      CURRENT_VERSION=$(npm list -g @upstash/context7-mcp --json 2>/dev/null | jq -r '.dependencies["@upstash/context7-mcp"].version' 2>/dev/null || echo "0.0.0")
-      LATEST_VERSION=$(npm view @upstash/context7-mcp version 2>/dev/null || echo "0.0.0")
-      
-      if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "0.0.0" ]; then
-        echo "📦 Update available: $CURRENT_VERSION → $LATEST_VERSION"
-        # Clean up any leftover temp directories first
-        rm -rf $HOME/.npm-global/lib/node_modules/@upstash/.context7-mcp-* 2>/dev/null || true
-        # Clean reinstall to avoid ENOTEMPTY errors
-        npm uninstall -g @upstash/context7-mcp 2>/dev/null || true
-        npm install -g @upstash/context7-mcp || {
-          echo "⚠️  Failed to update context7-mcp-server, but continuing..."
-        }
-      else
-        echo "✅ context7-mcp-server is up to date (version $CURRENT_VERSION)"
-      fi
-    fi
-  '';
+  home.activation.context7McpServer = config.lib.dag.entryAfter ["writeBoundary"] (
+    npmUtils.mkNpmPackageActivation {
+      packageName = "@upstash/context7-mcp";
+      binaryName = "context7-mcp";
+      displayName = "context7-mcp-server";
+    }
+  );
 
 
   # Create systemd user service for Linux/WSL

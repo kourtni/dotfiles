@@ -2,6 +2,7 @@
 
 let
   userConfig = import ../user-config.nix;
+  npmUtils = import ./npm-utils.nix { inherit pkgs; };
   
   # Platform detection
   isLinux = pkgs.stdenv.isLinux;
@@ -152,101 +153,21 @@ in
   ];
 
   # REPRODUCIBLE: Auto-install Claude Code via Home Manager activation
-  home.activation.claudeCode = config.lib.dag.entryAfter ["writeBoundary"] ''
-    set -e  # Exit on any error
-    
-    echo "🔧 Setting up Claude Code (v6)..."
-    
-    # Create npm global directory in home
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$HOME/.npm-global"
-    
-    # Add Node.js and npm to PATH for this activation script
-    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
-    
-    echo "✅ node found: $(which node)"
-    echo "✅ npm found: $(which npm)"
-    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
-    
-    # Install or update Claude Code
-    if [ ! -f "$HOME/.npm-global/bin/claude" ]; then
-      echo "📦 Installing Claude Code..."
-      npm install -g @anthropic-ai/claude-code || {
-        echo "❌ Failed to install Claude Code"
-        exit 1
-      }
-      echo "✅ Claude Code installed successfully!"
-    else
-      echo "🔄 Claude Code already installed, checking for updates..."
-      # Check if update is available
-      CURRENT_VERSION=$(npm list -g @anthropic-ai/claude-code --json 2>/dev/null | jq -r '.dependencies["@anthropic-ai/claude-code"].version' 2>/dev/null || echo "0.0.0")
-      LATEST_VERSION=$(npm view @anthropic-ai/claude-code version 2>/dev/null || echo "0.0.0")
-      
-      if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "0.0.0" ]; then
-        echo "📦 Update available: $CURRENT_VERSION → $LATEST_VERSION"
-        # Clean up any leftover temp directories first
-        rm -rf $HOME/.npm-global/lib/node_modules/@anthropic-ai/.claude-code-* 2>/dev/null || true
-        # Clean reinstall to avoid ENOTEMPTY errors
-        npm uninstall -g @anthropic-ai/claude-code 2>/dev/null || true
-        npm install -g @anthropic-ai/claude-code || {
-          echo "⚠️  Failed to update Claude Code, but continuing..."
-        }
-      else
-        echo "✅ Claude Code is up to date (version $CURRENT_VERSION)"
-      fi
-    fi
-    
-    echo "📋 Contents of ~/.npm-global/bin/:"
-    ls -la "$HOME/.npm-global/bin/" || echo "Directory doesn't exist yet"
-  '';
+  home.activation.claudeCode = config.lib.dag.entryAfter ["writeBoundary"] (
+    npmUtils.mkNpmPackageActivation {
+      packageName = "@anthropic-ai/claude-code";
+      binaryName = "claude";
+      displayName = "Claude Code";
+    }
+  );
 
   # REPRODUCIBLE: Auto-install Google Gemini CLI via Home Manager activation
-  home.activation.geminiCLI = config.lib.dag.entryAfter ["writeBoundary"] ''
-    set -e  # Exit on any error
-    
-    echo "🔧 Setting up Google Gemini CLI..."
-    
-    # Create npm global directory in home
-    export NPM_CONFIG_PREFIX="$HOME/.npm-global"
-    mkdir -p "$HOME/.npm-global"
-    
-    # Add Node.js and npm to PATH for this activation script
-    export PATH="${pkgs.nodejs_22}/bin:${pkgs.nodePackages.npm}/bin:$PATH"
-    
-    echo "✅ node found: $(which node)"
-    echo "✅ npm found: $(which npm)"
-    echo "📍 NPM prefix: $NPM_CONFIG_PREFIX"
-    
-    # Install or update Google Gemini CLI
-    if [ ! -f "$HOME/.npm-global/bin/gemini" ]; then
-      echo "📦 Installing Google Gemini CLI..."
-      npm install -g @google/gemini-cli || {
-        echo "❌ Failed to install Google Gemini CLI"
-        exit 1
-      }
-      echo "✅ Google Gemini CLI installed successfully!"
-    else
-      echo "🔄 Google Gemini CLI already installed, checking for updates..."
-      # Check if update is available
-      CURRENT_VERSION=$(npm list -g @google/gemini-cli --json 2>/dev/null | jq -r '.dependencies["@google/gemini-cli"].version' 2>/dev/null || echo "0.0.0")
-      LATEST_VERSION=$(npm view @google/gemini-cli version 2>/dev/null || echo "0.0.0")
-      
-      if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "0.0.0" ]; then
-        echo "📦 Update available: $CURRENT_VERSION → $LATEST_VERSION"
-        # Clean up any leftover temp directories first
-        rm -rf $HOME/.npm-global/lib/node_modules/@google/.gemini-cli-* 2>/dev/null || true
-        # Clean reinstall to avoid ENOTEMPTY errors
-        npm uninstall -g @google/gemini-cli 2>/dev/null || true
-        npm install -g @google/gemini-cli || {
-          echo "⚠️  Failed to update Google Gemini CLI, but continuing..."
-        }
-      else
-        echo "✅ Google Gemini CLI is up to date (version $CURRENT_VERSION)"
-      fi
-    fi
-    
-    echo "📋 Contents of ~/.npm-global/bin/:"
-    ls -la "$HOME/.npm-global/bin/" || echo "Directory doesn't exist yet"
-  '';
+  home.activation.geminiCLI = config.lib.dag.entryAfter ["writeBoundary"] (
+    npmUtils.mkNpmPackageActivation {
+      packageName = "@google/gemini-cli";
+      binaryName = "gemini";
+      displayName = "Google Gemini CLI";
+    }
+  );
 
 }
