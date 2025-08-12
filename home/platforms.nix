@@ -39,6 +39,7 @@ in
       curl
       fish
       htop
+      jq
       nodejs_22
       nodePackages.npm
       ollama
@@ -59,6 +60,8 @@ in
     ++ lib.optionals isNixOS [
       # Add NixOS-specific packages here
       # e.g., packages that work better on NixOS
+      patchelf
+      gcc
     ]
     # Traditional Linux packages (Ubuntu, Fedora, etc. + Nix)
     ++ lib.optionals (isLinux && !isNixOS) [

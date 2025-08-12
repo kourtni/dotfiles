@@ -96,9 +96,22 @@ in
       echo "✅ shadcn-ui-mcp-server installed successfully!"
     else
       echo "🔄 shadcn-ui-mcp-server already installed, checking for updates..."
-      npm update -g @jpisnice/shadcn-ui-mcp-server || {
-        echo "⚠️  Failed to update shadcn-ui-mcp-server, but continuing..."
-      }
+      # Check if update is available
+      CURRENT_VERSION=$(npm list -g @jpisnice/shadcn-ui-mcp-server --json 2>/dev/null | jq -r '.dependencies["@jpisnice/shadcn-ui-mcp-server"].version' 2>/dev/null || echo "0.0.0")
+      LATEST_VERSION=$(npm view @jpisnice/shadcn-ui-mcp-server version 2>/dev/null || echo "0.0.0")
+      
+      if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "0.0.0" ]; then
+        echo "📦 Update available: $CURRENT_VERSION → $LATEST_VERSION"
+        # Clean up any leftover temp directories first
+        rm -rf $HOME/.npm-global/lib/node_modules/@jpisnice/.shadcn-ui-mcp-server-* 2>/dev/null || true
+        # Clean reinstall to avoid ENOTEMPTY errors
+        npm uninstall -g @jpisnice/shadcn-ui-mcp-server 2>/dev/null || true
+        npm install -g @jpisnice/shadcn-ui-mcp-server || {
+          echo "⚠️  Failed to update shadcn-ui-mcp-server, but continuing..."
+        }
+      else
+        echo "✅ shadcn-ui-mcp-server is up to date (version $CURRENT_VERSION)"
+      fi
     fi
   '';
 
@@ -129,9 +142,22 @@ in
       echo "✅ context7-mcp-server installed successfully!"
     else
       echo "🔄 context7-mcp-server already installed, checking for updates..."
-      npm update -g @upstash/context7-mcp || {
-        echo "⚠️  Failed to update context7-mcp-server, but continuing..."
-      }
+      # Check if update is available
+      CURRENT_VERSION=$(npm list -g @upstash/context7-mcp --json 2>/dev/null | jq -r '.dependencies["@upstash/context7-mcp"].version' 2>/dev/null || echo "0.0.0")
+      LATEST_VERSION=$(npm view @upstash/context7-mcp version 2>/dev/null || echo "0.0.0")
+      
+      if [ "$CURRENT_VERSION" != "$LATEST_VERSION" ] && [ "$LATEST_VERSION" != "0.0.0" ]; then
+        echo "📦 Update available: $CURRENT_VERSION → $LATEST_VERSION"
+        # Clean up any leftover temp directories first
+        rm -rf $HOME/.npm-global/lib/node_modules/@upstash/.context7-mcp-* 2>/dev/null || true
+        # Clean reinstall to avoid ENOTEMPTY errors
+        npm uninstall -g @upstash/context7-mcp 2>/dev/null || true
+        npm install -g @upstash/context7-mcp || {
+          echo "⚠️  Failed to update context7-mcp-server, but continuing..."
+        }
+      else
+        echo "✅ context7-mcp-server is up to date (version $CURRENT_VERSION)"
+      fi
     fi
   '';
 
