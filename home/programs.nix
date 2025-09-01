@@ -101,7 +101,8 @@ in
       ll = "ls -l";
       gs = "git status";
       hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles";
-      # Portable VS Code launcher that works on any WSL system
+    } // lib.optionalAttrs isLinux {
+      # Portable VS Code launcher that works on any WSL system (Linux only)
       code = ''
         # Check if we're in WSL first
         if not test -f /proc/sys/fs/binfmt_misc/WSLInterop
