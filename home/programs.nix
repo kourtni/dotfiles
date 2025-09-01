@@ -145,7 +145,7 @@ in
     settings = import ./starship-settings-from-toml.nix;
   };
 
-  fonts.fontconfig.enable = true;
+  fonts.fontconfig.enable = pkgs.stdenv.isLinux;
 
   # Add npm global bin to PATH
   home.sessionPath = [

@@ -34,8 +34,23 @@ A portable, reproducible development environment configuration using Nix flakes 
    ```
 
 3. **Install**:
+   
+   **For macOS/Darwin users:**
+   ```bash
+   # Use the home-manager configuration (NOT nixosConfigurations)
+   nix run .#home-manager -- switch --flake .
+   # Or explicitly specify your system:
+   nix run .#home-manager -- switch --flake .#$(whoami)@$(uname -m)-darwin
+   ```
+   
+   **For Linux/WSL users:**
    ```bash
    nix run .#home-manager -- switch --flake .
+   ```
+   
+   **For NixOS users:**
+   ```bash
+   sudo nixos-rebuild switch --impure --flake .#wsl
    ```
 
 ### Quick Install (Advanced)
@@ -96,18 +111,23 @@ This repository can also be used to manage Model Context Protocol (MCP) server c
 1. **shadcn-ui-mcp-server**: Access to shadcn/ui v4 components and blocks
 2. **context7**: Upstash Context7 MCP server for context management
 3. **playwright**: Browser automation and testing via Playwright
-4. **testing-sensei**: Enforces and guides unit testing principles in code generation
+4. **nixos**: NixOS configuration and package management assistance
+5. **testing-sensei**: Enforces and guides unit testing principles in code generation
 
 ### Managing MCP Servers
 
-Use the following fish shell functions to manage MCP servers:
+Some MCP servers have management functions available in Fish shell:
 
 ```bash
-# For each server (replace <server> with shadcn, context7, or testing-sensei):
+# For managed servers (shadcn, context7, testing-sensei):
 mcp-<server>-status   # Check server status
 mcp-<server>-start    # Start the server
 mcp-<server>-stop     # Stop the server
 ```
+
+**Note**: 
+- On macOS, these commands use `launchctl` internally. On Linux/WSL, they use `systemctl`.
+- The `playwright` and `nixos` servers are invoked on-demand by Claude and don't require manual management.
 
 ### Adding MCP Servers to Projects
 
@@ -147,7 +167,7 @@ For NixOS systems, this repository expects a `hardware-configuration.nix` file t
 - **Shell**: Fish with vi key bindings
 - **Prompt**: Starship with custom Gruvbox theme
 - **Editor**: Neovim (set as `$EDITOR`)
-- **Aliases**: `ll`, `gs` (git status), `hm-rebuild`
+- **Aliases**: `ll`, `gs` (git status), `hm-rebuild` (works on all platforms)
 
 ### Development Tools
 
@@ -155,7 +175,7 @@ For NixOS systems, this repository expects a `hardware-configuration.nix` file t
 - **Git**: Configured with secrets management
 - **Claude Code**: Auto-installed CLI tool
 - **VS Code**: Platform-aware PATH integration
-- **Fonts**: Multiple Nerd Fonts for terminal icons
+- **Fonts**: Multiple Nerd Fonts for terminal icons (auto-installed to ~/Library/Fonts on macOS)
 
 ### Platform-Specific Features
 
@@ -164,12 +184,12 @@ The configuration automatically detects your platform and adapts:
 - **NixOS**: Handles Nix store paths and NixOS-specific filesystem layout
 - **Traditional Linux**: Uses standard paths like `/bin/bash` for compatibility  
 - **WSL**: Adds Windows VS Code integration, cross-platform file access
-- **macOS**: Sets Homebrew prefix, uses macOS-specific paths
+- **macOS**: Sets Homebrew prefix, uses macOS-specific paths, auto-links fonts to ~/Library/Fonts
 - **Environment Variables**: `SYSTEM_TYPE`, `IS_NIXOS`, `IS_WSL` for platform detection
 
 ## 🔐 Secrets Management
 
-This configuration uses [sops-nix](https://github.com/Mic92/sops-nix) for secure secrets management.
+This configuration uses [sops-nix](https://github.com/Mic92/sops-nix) for secure secrets management. Works identically on all platforms (Linux, WSL, macOS).
 
 ### For New Users
 
@@ -270,7 +290,7 @@ The `user-config.nix` file contains all user-specific settings:
   };
   
   # Platform-specific paths
-  windowsUsername = "your-windows-username"; # For WSL VS Code integration
+  windowsUsername = "your-windows-username"; # For WSL VS Code integration (ignored on macOS)
   
   # System settings
   stateVersion = "24.11"; # Home Manager state version
@@ -326,14 +346,14 @@ Edit `home/programs.nix` to customize fish shell, git, or other programs.
 1. **Secrets not decrypting**: Ensure your age key is in `~/.config/sops/age/keys.txt`
 2. **VS Code not in PATH**: Check platform detection with `echo $SYSTEM_TYPE`
 3. **Permission errors**: Ensure Nix has proper permissions for your user
-4. **`code` command not found in Fish shell**: On WSL systems, VS Code's shell script may not execute properly in Fish. Create a Fish function to wrap the command:
+4. **`code` command not found in Fish shell**: The configuration includes a portable `code` function that works on all platforms. If it still doesn't work:
    ```bash
    mkdir -p ~/.config/fish/functions
    echo 'function code
        "/mnt/c/Users/YOUR_USERNAME/AppData/Local/Programs/Microsoft VS Code/bin/code" $argv
    end' > ~/.config/fish/functions/code.fish
    ```
-   Replace `YOUR_USERNAME` with your Windows username. This creates a Fish function that properly executes the VS Code command.
+   Replace `YOUR_USERNAME` with your Windows username. This manually overrides the built-in function.
 
 5. **VS Code Remote-WSL fails on NixOS** with error "Could not start dynamically linked executable": This occurs because VS Code's node binary cannot find required shared libraries on NixOS. To fix:
    
@@ -356,7 +376,7 @@ Edit `home/programs.nix` to customize fish shell, git, or other programs.
 ### Debug Commands
 
 ```bash
-# Check platform detection
+# Check platform detection (works on all platforms)
 echo "System: $SYSTEM_TYPE, NixOS: $IS_NIXOS, WSL: $IS_WSL"
 
 # View decrypted secrets (for debugging)

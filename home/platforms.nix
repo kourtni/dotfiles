@@ -32,6 +32,45 @@ let
 in
 
 {
+  # Automatic font installation for macOS
+  home.activation.installFonts = lib.mkIf isDarwin (config.lib.dag.entryAfter ["writeBoundary"] ''
+    echo "🔤 Installing Nerd Fonts to macOS font directory..."
+    
+    # Create the font directory if it doesn't exist
+    mkdir -p ~/Library/Fonts
+    
+    # Find and link all font files from Nix profile
+    font_count=0
+    if [ -d ~/.nix-profile/share/fonts ]; then
+      find -L ~/.nix-profile/share/fonts \( -name "*.ttf" -o -name "*.otf" \) | while read font; do
+        font_name=$(basename "$font")
+        # Create symlink if it doesn't exist or points to a different file
+        if [ ! -L ~/Library/Fonts/"$font_name" ] || [ "$(readlink ~/Library/Fonts/"$font_name")" != "$font" ]; then
+          ln -sf "$font" ~/Library/Fonts/"$font_name"
+          font_count=$((font_count + 1))
+        fi
+      done
+    fi
+    
+    # Also check for fonts in the home-manager profile path
+    if [ -d ~/.local/state/nix/profiles/home-manager/home-path/share/fonts ]; then
+      find -L ~/.local/state/nix/profiles/home-manager/home-path/share/fonts \( -name "*.ttf" -o -name "*.otf" \) | while read font; do
+        font_name=$(basename "$font")
+        if [ ! -L ~/Library/Fonts/"$font_name" ] || [ "$(readlink ~/Library/Fonts/"$font_name")" != "$font" ]; then
+          ln -sf "$font" ~/Library/Fonts/"$font_name"
+          font_count=$((font_count + 1))
+        fi
+      done
+    fi
+    
+    if [ $font_count -gt 0 ]; then
+      echo "✅ Linked $font_count font files to ~/Library/Fonts"
+      echo "ℹ️  You may need to restart your terminal for fonts to appear"
+    else
+      echo "ℹ️  Fonts already up to date in ~/Library/Fonts"
+    fi
+  '');
+
   # Platform-specific package sets
   home.packages = with pkgs; (
     # Common packages for all platforms
