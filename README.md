@@ -175,7 +175,7 @@ For NixOS systems, this repository expects a `hardware-configuration.nix` file t
 - **Git**: Configured with secrets management
 - **Claude Code**: Auto-installed CLI tool
 - **VS Code**: Platform-aware PATH integration
-- **Fonts**: Multiple Nerd Fonts for terminal icons (auto-installed to ~/Library/Fonts on macOS)
+- **Fonts**: Multiple Nerd Fonts for terminal icons (auto-installed on Linux, manual install required on macOS)
 
 ### Platform-Specific Features
 
@@ -184,7 +184,7 @@ The configuration automatically detects your platform and adapts:
 - **NixOS**: Handles Nix store paths and NixOS-specific filesystem layout
 - **Traditional Linux**: Uses standard paths like `/bin/bash` for compatibility  
 - **WSL**: Adds Windows VS Code integration, cross-platform file access
-- **macOS**: Sets Homebrew prefix, uses macOS-specific paths, auto-links fonts to ~/Library/Fonts
+- **macOS**: Sets Homebrew prefix, uses macOS-specific paths, provides font installation instructions
 - **Environment Variables**: `SYSTEM_TYPE`, `IS_NIXOS`, `IS_WSL` for platform detection
 
 ## 🔐 Secrets Management
@@ -338,6 +338,23 @@ home.packages = with pkgs; [
 ### Modifying Shell Configuration
 
 Edit `home/programs.nix` to customize fish shell, git, or other programs.
+
+## 🎨 Fonts on macOS
+
+Due to fontconfig dependencies that are Linux-specific, Nerd Fonts need to be installed separately on macOS:
+
+### Via Homebrew (Recommended):
+```bash
+brew tap homebrew/cask-fonts
+brew install --cask font-0xproto-nerd-font
+brew install --cask font-droid-sans-mono-nerd-font
+brew install --cask font-fira-code-nerd-font
+brew install --cask font-jetbrains-mono-nerd-font
+brew install --cask font-hack-nerd-font
+```
+
+### Manual Installation:
+Download fonts from [Nerd Fonts Downloads](https://www.nerdfonts.com/font-downloads) and install them by double-clicking the `.ttf` files.
 
 ## 🐛 Troubleshooting
 
