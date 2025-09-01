@@ -228,7 +228,7 @@ lib.mkMerge [
     home.packages = let
       mcpTestingSenseiBinary = pkgs.fetchurl {
         url = "https://github.com/kourtni/mcp-testing-sensei/releases/download/v0.2.1/mcp-testing-sensei-macos";
-        sha256 = "1yrqmgyzf7zffl9vzdjz7v6ipdxrjvyw21i57gdhdwdis7y8f0qp";
+        sha256 = "sha256-mBuMO4IcZsX6awRq7RYQpBr7bxNxItPRDdSXBd+W2EM=";
         executable = true;
       };
       
