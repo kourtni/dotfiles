@@ -72,13 +72,7 @@
           username = (import ./user-config.nix).username;
           commonModules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
         in {
-          # Default configuration (works on any system)
-          ${username} = home-manager.lib.homeManagerConfiguration {
-            pkgs = pkgs;
-            modules = commonModules;
-          };
-          
-          # System-specific configurations if needed
+          # System-specific configurations
           "${username}@x86_64-linux" = home-manager.lib.homeManagerConfiguration {
             pkgs = import nixpkgs { system = "x86_64-linux"; };
             modules = commonModules;
