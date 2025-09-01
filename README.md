@@ -35,17 +35,24 @@ A portable, reproducible development environment configuration using Nix flakes 
 
 3. **Install**:
    
+   **IMPORTANT**: You must specify your system architecture:
+   
    **For macOS/Darwin users:**
    ```bash
-   # Use the home-manager configuration (NOT nixosConfigurations)
-   nix run .#home-manager -- switch --flake .
-   # Or explicitly specify your system:
-   nix run .#home-manager -- switch --flake .#$(whoami)@$(uname -m)-darwin
+   # Intel Mac:
+   nix run .#home-manager -- switch --flake .#$(whoami)@x86_64-darwin
+   
+   # Apple Silicon (M1/M2/M3):
+   nix run .#home-manager -- switch --flake .#$(whoami)@aarch64-darwin
    ```
    
    **For Linux/WSL users:**
    ```bash
-   nix run .#home-manager -- switch --flake .
+   # x86_64 Linux:
+   nix run .#home-manager -- switch --flake .#$(whoami)@x86_64-linux
+   
+   # ARM64 Linux:
+   nix run .#home-manager -- switch --flake .#$(whoami)@aarch64-linux
    ```
    
    **For NixOS users:**
@@ -55,10 +62,16 @@ A portable, reproducible development environment configuration using Nix flakes 
 
 ### Quick Install (Advanced)
 
-If you want to try the configuration as-is:
+If you want to try the configuration as-is, you must specify your system:
 ```bash
-# Uses default "kourtni" configuration
-nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles
+# Intel Mac:
+nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles#kourtni@x86_64-darwin
+
+# Apple Silicon Mac:
+nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles#kourtni@aarch64-darwin
+
+# x86_64 Linux:
+nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles#kourtni@x86_64-linux
 ```
 
 ## 🖥️ Supported Platforms
@@ -174,7 +187,7 @@ For NixOS systems, this repository expects a `hardware-configuration.nix` file t
 - **Shell**: Fish with vi key bindings
 - **Prompt**: Starship with custom Gruvbox theme
 - **Editor**: Neovim (set as `$EDITOR`)
-- **Aliases**: `ll`, `gs` (git status), `hm-rebuild` (works on all platforms)
+- **Aliases**: `ll`, `gs` (git status), `hm-rebuild` (Linux only - macOS users must specify system)
 
 ### Development Tools
 
@@ -251,13 +264,20 @@ Add host-specific configurations in `home/hosts/default.nix`:
 ### Home Manager
 
 ```bash
-# Switch to new configuration
-home-manager switch --flake .
+# Switch to new configuration (MUST specify system):
+# Intel Mac:
+home-manager switch --flake .#$(whoami)@x86_64-darwin
 
-# Switch and recreate lock file
-nix run .#home-manager -- switch --flake . --recreate-lock-file
+# Apple Silicon Mac:
+home-manager switch --flake .#$(whoami)@aarch64-darwin
 
-# Quick rebuild (aliased as 'hm-rebuild' in fish)
+# x86_64 Linux:
+home-manager switch --flake .#$(whoami)@x86_64-linux
+
+# ARM64 Linux:
+home-manager switch --flake .#$(whoami)@aarch64-linux
+
+# Quick rebuild (aliased as 'hm-rebuild' in fish) - NOTE: Only works on Linux
 hm-rebuild
 ```
 
@@ -312,8 +332,15 @@ This approach makes the dotfiles completely generic while allowing easy customiz
 # Update flake inputs
 nix flake update
 
-# Apply updates
-home-manager switch --flake .
+# Apply updates (MUST specify system):
+# Intel Mac:
+home-manager switch --flake .#$(whoami)@x86_64-darwin
+
+# Apple Silicon Mac:
+home-manager switch --flake .#$(whoami)@aarch64-darwin
+
+# x86_64 Linux:
+home-manager switch --flake .#$(whoami)@x86_64-linux
 ```
 
 ## 🛠️ Customization
