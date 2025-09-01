@@ -41,11 +41,13 @@ in
   # Platform-specific configurations are handled in platforms.nix
 
   # Ensure sops-nix service waits for home directory to be ready (Linux only)
-  systemd.user.services.sops-nix = lib.mkIf pkgs.stdenv.isLinux {
-    Unit = {
-      After = [ "graphical-session.target" ];
-      # Ensure the service starts after the file system is ready
-      RequiresMountsFor = [ config.home.homeDirectory ];
+  systemd.user.services = lib.optionalAttrs pkgs.stdenv.isLinux {
+    sops-nix = {
+      Unit = {
+        After = [ "graphical-session.target" ];
+        # Ensure the service starts after the file system is ready
+        RequiresMountsFor = [ config.home.homeDirectory ];
+      };
     };
   };
 
