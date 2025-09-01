@@ -8,27 +8,28 @@ let
   # Import shared npm utilities
   npmUtils = import ./npm-utils.nix { inherit pkgs; };
 in
-{
-  # Install npm packages via activation scripts (works on all platforms)
-  home.activation.shadcnUiMcpServer = config.lib.dag.entryAfter ["writeBoundary"] (
-    npmUtils.mkNpmPackageActivation {
-      packageName = "@jpisnice/shadcn-ui-mcp-server";
-      binaryName = "shadcn-mcp";
-      displayName = "shadcn-ui-mcp-server";
-    }
-  );
+lib.mkMerge [
+  # Linux-specific configuration
+  (lib.mkIf isLinux {
+    # Linux: Install npm packages AND create wrapper scripts
+    home.activation.shadcnUiMcpServer = config.lib.dag.entryAfter ["writeBoundary"] (
+      npmUtils.mkNpmPackageActivation {
+        packageName = "@jpisnice/shadcn-ui-mcp-server";
+        binaryName = "shadcn-mcp";
+        displayName = "shadcn-ui-mcp-server";
+      }
+    );
 
-  home.activation.context7McpServer = config.lib.dag.entryAfter ["writeBoundary"] (
-    npmUtils.mkNpmPackageActivation {
-      packageName = "@upstash/context7-mcp";
-      binaryName = "context7-mcp";
-      displayName = "context7-mcp-server";
-    }
-  );
+    home.activation.context7McpServer = config.lib.dag.entryAfter ["writeBoundary"] (
+      npmUtils.mkNpmPackageActivation {
+        packageName = "@upstash/context7-mcp";
+        binaryName = "context7-mcp";
+        displayName = "context7-mcp-server";
+      }
+    );
 
-  # Linux-only: wrapper scripts
-  home.packages = lib.optionals isLinux (
-    let
+    # Linux: Wrapper scripts for systemd services
+    home.packages = let
       shadcnUiMcpServerWrapper = pkgs.writeShellScriptBin "shadcn-ui-mcp-server" ''
         # Load GitHub token from sops if available
         if [ -f "${config.sops.secrets.github_mcp_token.path}" ]; then
@@ -79,109 +80,92 @@ in
       shadcnUiMcpServerWrapper
       context7McpServerWrapper
       mcpTestingSensei
-    ]
-  ) ++ lib.optionals isDarwin (
-    # Darwin-only: mcp-testing-sensei binary
-    let
-      mcpTestingSenseiBinary = pkgs.fetchurl {
-        url = "https://github.com/kourtni/mcp-testing-sensei/releases/download/v0.2.1/mcp-testing-sensei-macos";
-        sha256 = "1yrqmgyzf7zffl9vzdjz7v6ipdxrjvyw21i57gdhdwdis7y8f0qp";
-        executable = true;
-      };
-      
-      mcpTestingSensei = pkgs.runCommand "mcp-testing-sensei" {} ''
-        mkdir -p $out/bin
-        cp ${mcpTestingSenseiBinary} $out/bin/mcp-testing-sensei
-        chmod +x $out/bin/mcp-testing-sensei
-      '';
-    in [ mcpTestingSensei ]
-  );
+    ];
 
-  # Linux-only: systemd services - using lib.optionalAttrs to prevent evaluation on Darwin
-  systemd.user.services = lib.optionalAttrs isLinux {
-    shadcn-ui-mcp-server = {
-      Unit = {
-        Description = "shadcn/ui MCP Server";
-        Documentation = "https://github.com/Jpisnice/shadcn-ui-mcp-server";
+    # Linux: systemd services
+    systemd.user.services = {
+      shadcn-ui-mcp-server = {
+        Unit = {
+          Description = "shadcn/ui MCP Server";
+          Documentation = "https://github.com/Jpisnice/shadcn-ui-mcp-server";
+        };
+        Service = {
+          Type = "simple";
+          ExecStart = "${config.home.profileDirectory}/bin/shadcn-ui-mcp-server";
+          Environment = [
+            "NPM_CONFIG_PREFIX=%h/.npm-global"
+            "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
+          ];
+          Restart = "on-failure";
+          RestartSec = "5s";
+          PrivateTmp = true;
+          ProtectSystem = "strict";
+          ProtectHome = "read-only";
+          ReadWritePaths = [
+            "%h/.npm-global"
+            "%h/.npm"
+          ];
+          NoNewPrivileges = true;
+        };
+        Install = {
+          WantedBy = [ "default.target" ];
+        };
       };
-      Service = {
-        Type = "simple";
-        ExecStart = "${config.home.profileDirectory}/bin/shadcn-ui-mcp-server";
-        Environment = [
-          "NPM_CONFIG_PREFIX=%h/.npm-global"
-          "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
-        ];
-        Restart = "on-failure";
-        RestartSec = "5s";
-        PrivateTmp = true;
-        ProtectSystem = "strict";
-        ProtectHome = "read-only";
-        ReadWritePaths = [
-          "%h/.npm-global"
-          "%h/.npm"
-        ];
-        NoNewPrivileges = true;
+
+      context7-mcp-server = {
+        Unit = {
+          Description = "Context7 MCP Server";
+          Documentation = "https://github.com/upstash/context7";
+        };
+        Service = {
+          Type = "simple";
+          ExecStart = "${config.home.profileDirectory}/bin/context7-mcp-server";
+          Environment = [
+            "NPM_CONFIG_PREFIX=%h/.npm-global"
+            "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
+          ];
+          Restart = "on-failure";
+          RestartSec = "5s";
+          PrivateTmp = true;
+          ProtectSystem = "strict";
+          ProtectHome = "read-only";
+          ReadWritePaths = [
+            "%h/.npm-global"
+            "%h/.npm"
+          ];
+          NoNewPrivileges = true;
+        };
+        Install = {
+          WantedBy = [ "default.target" ];
+        };
       };
-      Install = {
-        WantedBy = [ "default.target" ];
+
+      mcp-testing-sensei = {
+        Unit = {
+          Description = "MCP Testing Sensei Server";
+          Documentation = "https://github.com/kourtni/mcp-testing-sensei";
+        };
+        Service = {
+          Type = "simple";
+          ExecStart = "${config.home.profileDirectory}/bin/mcp-testing-sensei";
+          Environment = [
+            "PATH=/usr/bin:/bin"
+          ];
+          Restart = "on-failure";
+          RestartSec = "5s";
+          PrivateTmp = true;
+          ProtectSystem = "strict";
+          ProtectHome = "read-only";
+          NoNewPrivileges = true;
+        };
+        Install = {
+          WantedBy = [ "default.target" ];
+        };
       };
     };
 
-    context7-mcp-server = {
-      Unit = {
-        Description = "Context7 MCP Server";
-        Documentation = "https://github.com/upstash/context7";
-      };
-      Service = {
-        Type = "simple";
-        ExecStart = "${config.home.profileDirectory}/bin/context7-mcp-server";
-        Environment = [
-          "NPM_CONFIG_PREFIX=%h/.npm-global"
-          "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
-        ];
-        Restart = "on-failure";
-        RestartSec = "5s";
-        PrivateTmp = true;
-        ProtectSystem = "strict";
-        ProtectHome = "read-only";
-        ReadWritePaths = [
-          "%h/.npm-global"
-          "%h/.npm"
-        ];
-        NoNewPrivileges = true;
-      };
-      Install = {
-        WantedBy = [ "default.target" ];
-      };
-    };
-
-    mcp-testing-sensei = {
-      Unit = {
-        Description = "MCP Testing Sensei Server";
-        Documentation = "https://github.com/kourtni/mcp-testing-sensei";
-      };
-      Service = {
-        Type = "simple";
-        ExecStart = "${config.home.profileDirectory}/bin/mcp-testing-sensei";
-        Environment = [
-          "PATH=/usr/bin:/bin"
-        ];
-        Restart = "on-failure";
-        RestartSec = "5s";
-        PrivateTmp = true;
-        ProtectSystem = "strict";
-        ProtectHome = "read-only";
-        NoNewPrivileges = true;
-      };
-      Install = {
-        WantedBy = [ "default.target" ];
-      };
-    };
-  };
-
-  # Shell functions - platform-specific
-  programs.fish.shellInit = lib.mkIf config.programs.fish.enable (
-    if isLinux then ''
+    # Linux: Fish shell functions for systemd management
+    programs.fish.shellInit = ''
       # MCP server management functions for Linux
       function mcp-shadcn-status
         systemctl --user status shadcn-ui-mcp-server
@@ -218,10 +202,47 @@ in
       function mcp-testing-sensei-stop
         systemctl --user stop mcp-testing-sensei
       end
-    '' else if isDarwin then ''
+    '';
+  })
+
+  # Darwin-specific configuration
+  (lib.mkIf isDarwin {
+    # Darwin: Only install npm packages (no wrapper scripts)
+    home.activation.shadcnUiMcpServerDarwin = config.lib.dag.entryAfter ["writeBoundary"] (
+      npmUtils.mkNpmPackageActivation {
+        packageName = "@jpisnice/shadcn-ui-mcp-server";
+        binaryName = "shadcn-mcp";
+        displayName = "shadcn-ui-mcp-server";
+      }
+    );
+
+    home.activation.context7McpServerDarwin = config.lib.dag.entryAfter ["writeBoundary"] (
+      npmUtils.mkNpmPackageActivation {
+        packageName = "@upstash/context7-mcp";
+        binaryName = "context7-mcp";
+        displayName = "context7-mcp-server";
+      }
+    );
+
+    # Darwin: Only install the mcp-testing-sensei binary
+    home.packages = let
+      mcpTestingSenseiBinary = pkgs.fetchurl {
+        url = "https://github.com/kourtni/mcp-testing-sensei/releases/download/v0.2.1/mcp-testing-sensei-macos";
+        sha256 = "1yrqmgyzf7zffl9vzdjz7v6ipdxrjvyw21i57gdhdwdis7y8f0qp";
+        executable = true;
+      };
+      
+      mcpTestingSensei = pkgs.runCommand "mcp-testing-sensei" {} ''
+        mkdir -p $out/bin
+        cp ${mcpTestingSenseiBinary} $out/bin/mcp-testing-sensei
+        chmod +x $out/bin/mcp-testing-sensei
+      '';
+    in [ mcpTestingSensei ];
+
+    # Darwin: Fish shell functions for MCP info
+    programs.fish.shellInit = ''
       # MCP server info for macOS
       # On macOS, MCP servers are invoked on-demand by Claude Code
-      # These functions provide helpful information
       
       function mcp-status
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -267,6 +288,6 @@ in
         echo "ℹ️  On macOS, MCP servers start automatically when Claude Code needs them."
         echo "Make sure you've configured your project with: ~/dotfiles/scripts/setup-mcp.sh"
       end
-    '' else ""
-  );
-}
+    '';
+  })
+]
