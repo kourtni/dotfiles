@@ -142,7 +142,26 @@ in
   programs.starship = {
     enable = true;
     enableFishIntegration = true;
-    settings = import ./starship-settings-from-toml.nix;
+    settings = if isDarwin then {
+      # Minimal Darwin config without Nerd Font symbols to avoid fontconfig dependencies
+      format = "$all$character";
+      character = {
+        success_symbol = "[>](bold green)";
+        error_symbol = "[>](bold red)";
+      };
+      directory = {
+        truncation_length = 3;
+        truncate_to_repo = true;
+      };
+      git_branch = {
+        symbol = "";
+        format = "[$symbol$branch]($style) ";
+      };
+      git_status = {
+        format = "[$all_status$ahead_behind]($style) ";
+      };
+      # Add other essential modules without Nerd Font icons
+    } else import ./starship-settings-from-toml.nix;
   };
 
   fonts.fontconfig.enable = pkgs.stdenv.isLinux;
