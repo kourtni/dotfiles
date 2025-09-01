@@ -8,31 +8,34 @@ let
   # Import shared npm utilities
   npmUtils = import ./npm-utils.nix { inherit pkgs; };
   
-  # Define the wrapper script that handles GitHub token loading
-  shadcnUiMcpServerWrapper = pkgs.writeShellScriptBin "shadcn-ui-mcp-server" ''
-    # Load GitHub token from sops if available
-    if [ -f "${config.sops.secrets.github_mcp_token.path}" ]; then
-      export GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ${config.sops.secrets.github_mcp_token.path})"
-      echo "✅ Using GitHub MCP token from sops"
-    else
-      echo "ℹ️  No GitHub MCP token found, running with default rate limits"
-    fi
-    
-    # Run the MCP server
-    exec ${pkgs.nodejs_22}/bin/npx @jpisnice/shadcn-ui-mcp-server "$@"
-  '';
+  # Only build these wrappers on Linux where they're used
+  shadcnUiMcpServerWrapper = if isLinux then
+    pkgs.writeShellScriptBin "shadcn-ui-mcp-server" ''
+      # Load GitHub token from sops if available
+      if [ -f "${config.sops.secrets.github_mcp_token.path}" ]; then
+        export GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ${config.sops.secrets.github_mcp_token.path})"
+        echo "✅ Using GitHub MCP token from sops"
+      else
+        echo "ℹ️  No GitHub MCP token found, running with default rate limits"
+      fi
+      
+      # Run the MCP server
+      exec ${pkgs.nodejs_22}/bin/npx @jpisnice/shadcn-ui-mcp-server "$@"
+    ''
+  else null;
   
-  # Define the wrapper script for context7
-  context7McpServerWrapper = pkgs.writeShellScriptBin "context7-mcp-server" ''
-    # Run the context7 MCP server
-    exec ${pkgs.nodejs_22}/bin/npx -y @upstash/context7-mcp "$@"
-  '';
+  context7McpServerWrapper = if isLinux then
+    pkgs.writeShellScriptBin "context7-mcp-server" ''
+      # Run the context7 MCP server
+      exec ${pkgs.nodejs_22}/bin/npx -y @upstash/context7-mcp "$@"
+    ''
+  else null;
   
   # Define the mcp-testing-sensei binary
   mcpTestingSenseiBinary = pkgs.fetchurl {
     url = "https://github.com/kourtni/mcp-testing-sensei/releases/download/v0.2.1/mcp-testing-sensei-${if pkgs.stdenv.isDarwin then "macos" else "linux"}";
     sha256 = if pkgs.stdenv.isDarwin 
-      then "1yrqmgyzf7zffl9vzdjz7v6ipdxrjvyw21i57gdhdwdis7y8f0qp"  # Need to update this for macOS with executable=true
+      then "1yrqmgyzf7zffl9vzdjz7v6ipdxrjvyw21i57gdhdwdis7y8f0qp"  # Need to update this for macOS
       else "sha256-aguZR8/wFlM3aChWIIRXzpu/QvYgDrRkaq3rrESscNs=";
     executable = true;
   };
@@ -72,7 +75,7 @@ let
   else throw "Unsupported platform";
 in
 {
-  # Install shadcn-ui-mcp-server via npm
+  # Install npm packages via activation scripts (works on all platforms)
   home.activation.shadcnUiMcpServer = config.lib.dag.entryAfter ["writeBoundary"] (
     npmUtils.mkNpmPackageActivation {
       packageName = "@jpisnice/shadcn-ui-mcp-server";
@@ -81,7 +84,6 @@ in
     }
   );
 
-  # Install context7-mcp-server via npm
   home.activation.context7McpServer = config.lib.dag.entryAfter ["writeBoundary"] (
     npmUtils.mkNpmPackageActivation {
       packageName = "@upstash/context7-mcp";
@@ -90,8 +92,7 @@ in
     }
   );
 
-
-  # Create systemd user service for Linux/WSL
+  # Create systemd user services for Linux/WSL only
   systemd.user.services.shadcn-ui-mcp-server = lib.mkIf isLinux {
     Unit = {
       Description = "shadcn/ui MCP Server";
@@ -100,16 +101,13 @@ in
 
     Service = {
       Type = "simple";
-      # Use the wrapper script for consistency with macOS
       ExecStart = "${shadcnUiMcpServerWrapper}/bin/shadcn-ui-mcp-server";
       
-      # Set up environment
       Environment = [
         "NPM_CONFIG_PREFIX=%h/.npm-global"
         "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
       ];
       
-      # Restart on failure
       Restart = "on-failure";
       RestartSec = "5s";
       
@@ -137,16 +135,13 @@ in
 
     Service = {
       Type = "simple";
-      # Use the wrapper script
       ExecStart = "${context7McpServerWrapper}/bin/context7-mcp-server";
       
-      # Set up environment
       Environment = [
         "NPM_CONFIG_PREFIX=%h/.npm-global"
         "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
       ];
       
-      # Restart on failure
       Restart = "on-failure";
       RestartSec = "5s";
       
@@ -174,15 +169,12 @@ in
 
     Service = {
       Type = "simple";
-      # Use the standalone binary directly
       ExecStart = "${mcpTestingSensei}/bin/mcp-testing-sensei";
       
-      # Minimal environment setup - no npm or node required
       Environment = [
         "PATH=/usr/bin:/bin"
       ];
       
-      # Restart on failure
       Restart = "on-failure";
       RestartSec = "5s";
       
@@ -198,175 +190,109 @@ in
     };
   };
 
-  # For macOS, create a launchd configuration
-  launchd.agents.shadcn-ui-mcp-server = lib.mkIf isDarwin {
-    enable = true;
-    config = {
-      Label = "com.github.jpisnice.shadcn-ui-mcp-server";
-      ProgramArguments = [
-        "${shadcnUiMcpServerWrapper}/bin/shadcn-ui-mcp-server"
-      ];
-      
-      # Set up environment
-      EnvironmentVariables = {
-        NPM_CONFIG_PREFIX = "%h/.npm-global";
-        PATH = "${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin";
-      };
+  # Note: On macOS, MCP servers are run on-demand by Claude Code directly
+  # We don't need launchd agents since the npm packages are installed globally
+  # and Claude Code will invoke them as needed via the .mcp.json configuration
 
-      RunAtLoad = false;
-      KeepAlive = false;
-      
-      # Logging
-      StandardOutPath = "%h/Library/Logs/shadcn-ui-mcp-server.log";
-      StandardErrorPath = "%h/Library/Logs/shadcn-ui-mcp-server.error.log";
-    };
-  };
-
-  launchd.agents.context7-mcp-server = lib.mkIf isDarwin {
-    enable = true;
-    config = {
-      Label = "com.upstash.context7-mcp-server";
-      ProgramArguments = [
-        "${context7McpServerWrapper}/bin/context7-mcp-server"
-      ];
-      
-      # Set up environment
-      EnvironmentVariables = {
-        NPM_CONFIG_PREFIX = "%h/.npm-global";
-        PATH = "${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin";
-      };
-
-      RunAtLoad = false;
-      KeepAlive = false;
-      
-      # Logging
-      StandardOutPath = "%h/Library/Logs/context7-mcp-server.log";
-      StandardErrorPath = "%h/Library/Logs/context7-mcp-server.error.log";
-    };
-  };
-
-  launchd.agents.mcp-testing-sensei = lib.mkIf isDarwin {
-    enable = true;
-    config = {
-      Label = "com.kourtni.mcp-testing-sensei";
-      ProgramArguments = [
-        "${mcpTestingSensei}/bin/mcp-testing-sensei"
-      ];
-      
-      # Minimal environment setup - no npm or node required
-      EnvironmentVariables = {
-        PATH = "/usr/bin:/bin";
-      };
-
-      RunAtLoad = false;
-      KeepAlive = false;
-      
-      # Logging
-      StandardOutPath = "%h/Library/Logs/mcp-testing-sensei.log";
-      StandardErrorPath = "%h/Library/Logs/mcp-testing-sensei.error.log";
-    };
-  };
-
-  # Add the wrapper scripts and standalone binary to home packages
-  home.packages = [
+  # Add packages to home only for the platforms where they work
+  home.packages = lib.optionals isLinux [
     shadcnUiMcpServerWrapper
     context7McpServerWrapper
     mcpTestingSensei
+  ] ++ lib.optionals isDarwin [
+    # Only the testing-sensei binary works standalone on Darwin
+    mcpTestingSensei
   ];
 
-  # Add information about the MCP server to the user's shell
-  programs.fish.shellInit = lib.mkIf config.programs.fish.enable ''
-    # shadcn-ui-mcp-server info
-    function mcp-shadcn-status
-      if command -v systemctl >/dev/null 2>&1
+  # Add information about MCP server management to the user's shell
+  # These functions work cross-platform but behave differently
+  programs.fish.shellInit = lib.mkIf config.programs.fish.enable (
+    if isLinux then ''
+      # MCP server management functions for Linux
+      function mcp-shadcn-status
         systemctl --user status shadcn-ui-mcp-server
-      else if test (uname) = "Darwin"
-        launchctl list | grep shadcn-ui-mcp-server
-      else
-        echo "MCP server status not available on this platform"
       end
-    end
-    
-    function mcp-shadcn-start
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-shadcn-start
         systemctl --user start shadcn-ui-mcp-server
-      else if test (uname) = "Darwin"
-        launchctl load ~/Library/LaunchAgents/com.github.jpisnice.shadcn-ui-mcp-server.plist
-      else
-        shadcn-ui-mcp-server
       end
-    end
-    
-    function mcp-shadcn-stop
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-shadcn-stop
         systemctl --user stop shadcn-ui-mcp-server
-      else if test (uname) = "Darwin"
-        launchctl unload ~/Library/LaunchAgents/com.github.jpisnice.shadcn-ui-mcp-server.plist
-      else
-        echo "Use Ctrl+C to stop the MCP server"
       end
-    end
-    
-    # context7-mcp-server info
-    function mcp-context7-status
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-context7-status
         systemctl --user status context7-mcp-server
-      else if test (uname) = "Darwin"
-        launchctl list | grep context7-mcp-server
-      else
-        echo "MCP server status not available on this platform"
       end
-    end
-    
-    function mcp-context7-start
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-context7-start
         systemctl --user start context7-mcp-server
-      else if test (uname) = "Darwin"
-        launchctl load ~/Library/LaunchAgents/com.upstash.context7-mcp-server.plist
-      else
-        context7-mcp-server
       end
-    end
-    
-    function mcp-context7-stop
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-context7-stop
         systemctl --user stop context7-mcp-server
-      else if test (uname) = "Darwin"
-        launchctl unload ~/Library/LaunchAgents/com.upstash.context7-mcp-server.plist
-      else
-        echo "Use Ctrl+C to stop the MCP server"
       end
-    end
-    
-    # mcp-testing-sensei info
-    function mcp-testing-sensei-status
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-testing-sensei-status
         systemctl --user status mcp-testing-sensei
-      else if test (uname) = "Darwin"
-        launchctl list | grep mcp-testing-sensei
-      else
-        echo "MCP server status not available on this platform"
       end
-    end
-    
-    function mcp-testing-sensei-start
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-testing-sensei-start
         systemctl --user start mcp-testing-sensei
-      else if test (uname) = "Darwin"
-        launchctl load ~/Library/LaunchAgents/com.kourtni.mcp-testing-sensei.plist
-      else
-        mcp-testing-sensei
       end
-    end
-    
-    function mcp-testing-sensei-stop
-      if command -v systemctl >/dev/null 2>&1
+      
+      function mcp-testing-sensei-stop
         systemctl --user stop mcp-testing-sensei
-      else if test (uname) = "Darwin"
-        launchctl unload ~/Library/LaunchAgents/com.kourtni.mcp-testing-sensei.plist
-      else
-        echo "Use Ctrl+C to stop the MCP server"
       end
-    end
-  '';
+    '' else if isDarwin then ''
+      # MCP server info for macOS
+      # On macOS, MCP servers are invoked on-demand by Claude Code
+      # These functions provide helpful information
+      
+      function mcp-status
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📝 MCP Servers on macOS"
+        echo ""
+        echo "MCP servers are invoked on-demand by Claude Code."
+        echo "No manual start/stop is needed."
+        echo ""
+        echo "Installed servers:"
+        if test -f ~/.npm-global/bin/shadcn-mcp
+          echo "  ✅ shadcn-ui-mcp-server"
+        else
+          echo "  ❌ shadcn-ui-mcp-server (not installed)"
+        end
+        if test -f ~/.npm-global/bin/context7-mcp
+          echo "  ✅ context7-mcp-server"
+        else
+          echo "  ❌ context7-mcp-server (not installed)"
+        end
+        if command -v mcp-testing-sensei >/dev/null 2>&1
+          echo "  ✅ mcp-testing-sensei"
+        else
+          echo "  ❌ mcp-testing-sensei (not installed)"
+        end
+        echo ""
+        echo "Configure in your project with:"
+        echo "  ~/dotfiles/scripts/setup-mcp.sh"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      end
+      
+      # Provide helpful aliases that inform the user
+      function mcp-shadcn-start
+        echo "ℹ️  On macOS, MCP servers start automatically when Claude Code needs them."
+        echo "Make sure you've configured your project with: ~/dotfiles/scripts/setup-mcp.sh"
+      end
+      
+      function mcp-context7-start
+        echo "ℹ️  On macOS, MCP servers start automatically when Claude Code needs them."
+        echo "Make sure you've configured your project with: ~/dotfiles/scripts/setup-mcp.sh"
+      end
+      
+      function mcp-testing-sensei-start
+        echo "ℹ️  On macOS, MCP servers start automatically when Claude Code needs them."
+        echo "Make sure you've configured your project with: ~/dotfiles/scripts/setup-mcp.sh"
+      end
+    '' else ""
+  );
 }

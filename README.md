@@ -116,18 +116,25 @@ This repository can also be used to manage Model Context Protocol (MCP) server c
 
 ### Managing MCP Servers
 
-Some MCP servers have management functions available in Fish shell:
+#### On Linux/WSL:
+MCP servers can be managed as systemd services:
 
 ```bash
 # For managed servers (shadcn, context7, testing-sensei):
-mcp-<server>-status   # Check server status
-mcp-<server>-start    # Start the server
-mcp-<server>-stop     # Stop the server
+mcp-<server>-status   # Check server status via systemctl
+mcp-<server>-start    # Start the server via systemctl
+mcp-<server>-stop     # Stop the server via systemctl
 ```
 
-**Note**: 
-- On macOS, these commands use `launchctl` internally. On Linux/WSL, they use `systemctl`.
-- The `playwright` and `nixos` servers are invoked on-demand by Claude and don't require manual management.
+#### On macOS:
+MCP servers are invoked on-demand by Claude Code directly. No manual management is needed.
+
+```bash
+mcp-status           # Check which MCP servers are installed
+mcp-<server>-start   # Shows info that servers auto-start on macOS
+```
+
+**Note**: The `playwright` and `nixos` servers are invoked on-demand on all platforms.
 
 ### Adding MCP Servers to Projects
 
