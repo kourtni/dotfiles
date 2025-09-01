@@ -62,7 +62,7 @@ in
       ollama
       vim
     ]
-    # Fonts - only on Linux where fontconfig works properly
+    # Linux-specific packages (fonts that require fontconfig)
     ++ lib.optionals isLinux [
       nerd-fonts._0xproto
       nerd-fonts.droid-sans-mono
@@ -72,8 +72,8 @@ in
     ]
     # macOS-specific packages  
     ++ lib.optionals isDarwin [
-      # On macOS, we'll handle fonts differently to avoid Linux dependencies
-      # Users should install fonts via Homebrew or manually
+      # Ollama might work on Darwin, but if it doesn't, remove this line
+      # ollama
     ]
     # NixOS-specific packages (handles NixOS quirks)
     ++ lib.optionals isNixOS [
