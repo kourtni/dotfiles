@@ -164,9 +164,8 @@ lib.mkMerge [
       };
     };
 
-    # Linux: Export Fish shell functions for systemd management
-    # These will be imported by programs.nix to avoid multiple shellInit definitions
-    mcpLinuxShellFunctions = ''
+    # Linux: Fish shell functions for systemd management
+    programs.fish.shellInit = ''
       # MCP server management functions for Linux
       function mcp-shadcn-status
         systemctl --user status shadcn-ui-mcp-server
@@ -240,9 +239,8 @@ lib.mkMerge [
       '';
     in [ mcpTestingSensei ];
 
-    # Darwin: Export Fish shell functions for MCP info  
-    # These will be imported by programs.nix to avoid multiple shellInit definitions
-    mcpDarwinShellFunctions = ''
+    # Darwin: Fish shell functions for MCP info
+    programs.fish.shellInit = ''
       # MCP server info for macOS
       # On macOS, MCP servers are invoked on-demand by Claude Code
       
