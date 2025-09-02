@@ -187,7 +187,7 @@ For NixOS systems, this repository expects a `hardware-configuration.nix` file t
 - **Shell**: Fish with vi key bindings
 - **Prompt**: Starship with custom Gruvbox theme
 - **Editor**: Neovim (set as `$EDITOR`)
-- **Aliases**: `ll`, `gs` (git status), `hm-rebuild` (Linux only - macOS users must specify system)
+- **Aliases**: `ll`, `gs` (git status), `hm-rebuild` (auto-detects system architecture)
 
 ### Development Tools
 
@@ -277,7 +277,8 @@ home-manager switch --flake .#$(whoami)@x86_64-linux
 # ARM64 Linux:
 home-manager switch --flake .#$(whoami)@aarch64-linux
 
-# Quick rebuild (aliased as 'hm-rebuild' in fish) - NOTE: Only works on Linux
+# Quick rebuild (aliased as 'hm-rebuild' in fish) - Works on all platforms
+# Automatically uses your current username and system architecture
 hm-rebuild
 ```
 
