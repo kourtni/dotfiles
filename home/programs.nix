@@ -95,12 +95,6 @@ in
       if test -d "$code_bin"
         set -gx PATH $code_bin $PATH
       end
-    '' + lib.optionalString (isLinux && (config ? mcpLinuxShellFunctions)) ''
-      
-      ${config.mcpLinuxShellFunctions}
-    '' + lib.optionalString (isDarwin && (config ? mcpDarwinShellFunctions)) ''
-      
-      ${config.mcpDarwinShellFunctions}
     '';
 
     functions = {
