@@ -95,12 +95,19 @@ in
       if test -d "$code_bin"
         set -gx PATH $code_bin $PATH
       end
+    '' + lib.optionalString (isLinux && (config ? mcpLinuxShellFunctions)) ''
+      
+      ${config.mcpLinuxShellFunctions}
+    '' + lib.optionalString (isDarwin && (config ? mcpDarwinShellFunctions)) ''
+      
+      ${config.mcpDarwinShellFunctions}
     '';
 
     functions = {
       ll = "ls -l";
       gs = "git status";
-      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles";
+      # hm-rebuild now includes the system architecture to work properly
+      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles#${userConfig.username}@${pkgs.system}";
     } // lib.optionalAttrs isLinux {
       # Portable VS Code launcher that works on any WSL system (Linux only)
       code = ''
