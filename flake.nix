@@ -66,38 +66,19 @@
         ];
       };
 
-      # Home-manager configurations for different systems
-      homeConfigurations = 
-        let
-          username = (import ./user-config.nix).username;
-          commonModules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
-        in {
-          # System-specific configurations
-          "${username}@x86_64-linux" = home-manager.lib.homeManagerConfiguration {
-            pkgs = import nixpkgs { system = "x86_64-linux"; };
-            modules = commonModules;
-          };
-          
-          "${username}@aarch64-linux" = home-manager.lib.homeManagerConfiguration {
-            pkgs = import nixpkgs { system = "aarch64-linux"; };
-            modules = commonModules;
-          };
-          
-          "${username}@x86_64-darwin" = home-manager.lib.homeManagerConfiguration {
-            pkgs = import nixpkgs { system = "x86_64-darwin"; };
-            modules = commonModules;
-          };
-          
-          "${username}@aarch64-darwin" = home-manager.lib.homeManagerConfiguration {
-            pkgs = import nixpkgs { system = "aarch64-darwin"; };
-            modules = commonModules;
-          };
-        };
-
       # Make home-manager accessible via nix run and nix shell for all systems
-      packages = forAllSystems (system: {
-        home-manager = home-manager.packages.${system}.home-manager;
-        default = home-manager.packages.${system}.home-manager;
-      });
+      packages = forAllSystems (system: 
+        let
+            username = (import ./user-config.nix).username;
+            pkgs = import nixpkgs { inherit system; };
+        in {
+            homeConfigurations = {
+                "${username}" = home-manager.lib.homeManagerConfiguration {
+                    inherit pkgs;
+                    modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
+                };
+            };
+        }
+      );
     };
 }
