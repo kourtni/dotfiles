@@ -67,11 +67,14 @@
       };
 
       # Make home-manager accessible via nix run and nix shell for all systems
-      packages = forAllSystems (system: 
+      packages = forAllSystems (system:
         let
             username = (import ./user-config.nix).username;
             pkgs = import nixpkgs { inherit system; };
         in {
+            home-manager = home-manager.packages.${system}.home-manager;
+            default = home-manager.packages.${system}.home-manager;
+
             homeConfigurations = {
                 "${username}" = home-manager.lib.homeManagerConfiguration {
                     inherit pkgs;
