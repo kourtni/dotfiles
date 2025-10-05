@@ -67,21 +67,24 @@
       };
 
       # Make home-manager accessible via nix run and nix shell for all systems
-      packages = forAllSystems (system:
-        let
-            username = (import ./user-config.nix).username;
-            pkgs = import nixpkgs { inherit system; };
-        in {
-            home-manager = home-manager.packages.${system}.home-manager;
-            default = home-manager.packages.${system}.home-manager;
+      packages = forAllSystems (system: {
+        home-manager = home-manager.packages.${system}.home-manager;
+        default = home-manager.packages.${system}.home-manager;
+      });
 
-            homeConfigurations = {
-                "${username}" = home-manager.lib.homeManagerConfiguration {
-                    inherit pkgs;
-                    modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
-                };
-            };
-        }
-      );
+      # Standalone home-manager configurations
+      homeConfigurations =
+        let
+          username = (import ./user-config.nix).username;
+          mkHomeConfig = system: home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs { inherit system; };
+            modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
+          };
+        in {
+          "${username}@x86_64-linux" = mkHomeConfig "x86_64-linux";
+          "${username}@aarch64-linux" = mkHomeConfig "aarch64-linux";
+          "${username}@x86_64-darwin" = mkHomeConfig "x86_64-darwin";
+          "${username}@aarch64-darwin" = mkHomeConfig "aarch64-darwin";
+        };
     };
 }

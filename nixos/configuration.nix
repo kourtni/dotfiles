@@ -19,6 +19,13 @@ in
   wsl.enable = true;
   wsl.defaultUser = userConfig.username;
 
+  # Override problematic auto-generated mounts with nofail option
+  fileSystems."/usr/lib/wsl/drivers" = lib.mkForce {
+    device = "none";
+    fsType = "none";
+    options = [ "nofail" ];
+  };
+
   # Enable flakes
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   
