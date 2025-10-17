@@ -247,17 +247,87 @@ github:
 
 ## 🏠 Host-Specific Customization
 
-Add host-specific configurations in `home/hosts/default.nix`:
+You can add packages and configurations that only apply to specific machines without affecting other hosts that share this dotfiles repository.
+
+### Automatic Host Detection
+
+The configuration in `home/hosts/default.nix` automatically detects your hostname and conditionally applies settings:
 
 ```nix
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
+
+let
+  # Automatically detect hostname
+  hostnameFile = pkgs.runCommand "hostname" {} ''
+    ${pkgs.hostname}/bin/hostname | cut -d. -f1 > $out
+  '';
+  hostname = builtins.readFile hostnameFile;
+  isCxGawd = lib.strings.hasPrefix "CxGawd" hostname;
+in
 {
-  # Add your host-specific overrides here
-  home.packages = with pkgs; [
-    # Additional packages for this host
+  # Host-specific packages
+  home.packages = lib.optionals isCxGawd [
+    pkgs.bazelisk  # Only installed on CxGawd host
   ];
 }
 ```
+
+To rebuild with host-specific settings, just use the normal rebuild command:
+```bash
+# Intel Mac:
+home-manager switch --flake .#$(whoami)@x86_64-darwin
+
+# Apple Silicon Mac:
+home-manager switch --flake .#$(whoami)@aarch64-darwin
+
+# x86_64 Linux:
+home-manager switch --flake .#$(whoami)@x86_64-linux
+
+# ARM64 Linux:
+home-manager switch --flake .#$(whoami)@aarch64-linux
+
+# Or use the hm-rebuild alias which handles architecture automatically
+hm-rebuild
+```
+
+The hostname is automatically detected during the build process, so packages will only be installed on the appropriate hosts.
+
+### Method 2: Host-Specific Files
+
+Create a file named after your hostname in `home/hosts/`:
+```bash
+# Example: home/hosts/MyHost.nix
+{ config, pkgs, ... }:
+{
+  home.packages = with pkgs; [
+    # Packages only for MyHost
+  ];
+}
+```
+
+### Adding Host-Specific Packages
+
+To add packages only to your current machine:
+
+1. Edit `home/hosts/default.nix`
+2. Add a condition for your hostname:
+   ```nix
+   let
+     hostnameFile = pkgs.runCommand "hostname" {} ''
+       ${pkgs.hostname}/bin/hostname | cut -d. -f1 > $out
+     '';
+     hostname = builtins.readFile hostnameFile;
+     isMyHost = lib.strings.hasPrefix "MyHostName" hostname;
+   in
+   {
+     home.packages = lib.optionals isMyHost [
+       pkgs.package-name
+     ];
+   }
+   ```
+3. Rebuild with: `home-manager switch --flake .#$(whoami)@<system-architecture>`
+
+   Where `<system-architecture>` is one of: `x86_64-darwin`, `aarch64-darwin`, `x86_64-linux`, or `aarch64-linux`
 
 ## 📋 Available Commands
 
