@@ -24,9 +24,9 @@ in
   programs.git = {
     enable = true;
     # Fallback git config (can be overridden by sops secrets)
-    userName = userConfig.git.name;
-    userEmail = userConfig.git.email;
-    extraConfig = {
+    settings = {
+      user.name = userConfig.git.name;
+      user.email = userConfig.git.email;
       credential.helper = "store";
     };
   };
@@ -100,9 +100,13 @@ in
     functions = {
       ll = "ls -l";
       gs = "git status";
-      # hm-rebuild now includes the system architecture to work properly
+    } // (if isDarwin then {
+      # On macOS, use darwin-rebuild which manages both system and home-manager
+      hm-rebuild = "darwin-rebuild switch --flake ~/dotfiles#${pkgs.system}";
+    } else {
+      # On Linux, use standalone home-manager
       hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles#${userConfig.username}@${pkgs.system}";
-    } // lib.optionalAttrs isLinux {
+    }) // lib.optionalAttrs isLinux {
       # Portable VS Code launcher that works on any WSL system (Linux only)
       code = ''
         # Check if we're in WSL first

@@ -2,14 +2,15 @@
   description = "NixOS WSL + Home Manager Config";
 
   inputs = {
-    
-    # Input for the STABLE system foundation
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
 
-    # Input for UNSTABLE packages
+    # Input for the system foundation - using unstable for compatibility
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    # Keep unstable alias for consistency
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-    home-manager.url = "github:nix-community/home-manager/release-25.05";
+    # Use master branch (25.11) to match nixpkgs
+    home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     
     nixos-wsl.url = "github:nix-community/NixOS-WSL";
@@ -18,11 +19,14 @@
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
+    nix-darwin.url = "github:LnL7/nix-darwin";
+    nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+
     flake-programs-sqlite.url = "github:wamserma/flake-programs-sqlite";
     flake-programs-sqlite.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, sops-nix, flake-programs-sqlite, ... }: 
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, nix-darwin, sops-nix, flake-programs-sqlite, ... }: 
     let
       # Supported systems
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
@@ -85,6 +89,28 @@
           "${username}@aarch64-linux" = mkHomeConfig "aarch64-linux";
           "${username}@x86_64-darwin" = mkHomeConfig "x86_64-darwin";
           "${username}@aarch64-darwin" = mkHomeConfig "aarch64-darwin";
+        };
+
+      # nix-darwin configurations for macOS
+      darwinConfigurations =
+        let
+          username = (import ./user-config.nix).username;
+          mkDarwinConfig = system: nix-darwin.lib.darwinSystem {
+            inherit system;
+            modules = [
+              ./darwin/configuration.nix
+              home-manager.darwinModules.home-manager
+              {
+                home-manager.useGlobalPkgs = true;
+                home-manager.useUserPackages = true;
+                home-manager.users.${username} = import ./home/default.nix;
+                home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
+              }
+            ];
+          };
+        in {
+          "x86_64-darwin" = mkDarwinConfig "x86_64-darwin";
+          "aarch64-darwin" = mkDarwinConfig "aarch64-darwin";
         };
     };
 }

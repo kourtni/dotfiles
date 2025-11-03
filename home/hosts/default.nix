@@ -7,10 +7,12 @@ let
   '';
   hostname = builtins.readFile hostnameFile;
   isCxGawd = lib.strings.hasPrefix "CxGawd" hostname;
+  isDarwin = pkgs.stdenv.isDarwin;
 in
 {
   # Host-specific packages
-  home.packages = lib.optionals isCxGawd [
+  # Note: bazelisk is installed system-wide via nix-darwin on macOS
+  home.packages = lib.optionals (isCxGawd && !isDarwin) [
     pkgs.bazelisk
   ];
 }

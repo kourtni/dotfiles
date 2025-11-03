@@ -40,12 +40,12 @@ lib.mkMerge [
         fi
         
         # Run the MCP server
-        exec ${pkgs.nodejs_22}/bin/npx @jpisnice/shadcn-ui-mcp-server "$@"
+        exec ${pkgs.nodejs_20}/bin/npx @jpisnice/shadcn-ui-mcp-server "$@"
       '';
       
       context7McpServerWrapper = pkgs.writeShellScriptBin "context7-mcp-server" ''
         # Run the context7 MCP server
-        exec ${pkgs.nodejs_22}/bin/npx -y @upstash/context7-mcp "$@"
+        exec ${pkgs.nodejs_20}/bin/npx -y @upstash/context7-mcp "$@"
       '';
       
       # Define the mcp-testing-sensei for Linux
@@ -94,7 +94,7 @@ lib.mkMerge [
           ExecStart = "${config.home.profileDirectory}/bin/shadcn-ui-mcp-server";
           Environment = [
             "NPM_CONFIG_PREFIX=%h/.npm-global"
-            "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
+            "PATH=${pkgs.nodejs_20}/bin:%h/.npm-global/bin:/usr/bin:/bin"
           ];
           Restart = "on-failure";
           RestartSec = "5s";
@@ -122,7 +122,7 @@ lib.mkMerge [
           ExecStart = "${config.home.profileDirectory}/bin/context7-mcp-server";
           Environment = [
             "NPM_CONFIG_PREFIX=%h/.npm-global"
-            "PATH=${pkgs.nodejs_22}/bin:%h/.npm-global/bin:/usr/bin:/bin"
+            "PATH=${pkgs.nodejs_20}/bin:%h/.npm-global/bin:/usr/bin:/bin"
           ];
           Restart = "on-failure";
           RestartSec = "5s";

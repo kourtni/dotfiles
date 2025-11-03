@@ -57,8 +57,8 @@ in
       fish
       htop
       jq
-      nodejs_22
-      nodePackages.npm
+      nodejs_20  # LTS version - better binary cache coverage
+      # npm is included with nodejs, no need for separate package
       ollama
       vim
     ]
