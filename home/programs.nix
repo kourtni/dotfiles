@@ -23,25 +23,34 @@ in
   
   programs.git = {
     enable = true;
-    # Fallback git config (can be overridden by sops secrets)
-    settings = {
-      user.name = userConfig.git.name;
-      user.email = userConfig.git.email;
+    # Base git config managed by home-manager
+    extraConfig = {
       credential.helper = "store";
+      # Include local config for secrets (written by activation script)
+      include.path = "~/.config/git/config.local";
     };
+    # Fallback user config (overridden by sops secrets in config.local)
+    userName = userConfig.git.name;
+    userEmail = userConfig.git.email;
   };
 
   # Set up git credentials and config via activation script that can read sops secrets
   home.activation.setupGitSecrets = config.lib.dag.entryAfter ["writeBoundary"] ''
-    # Set git user name and email from sops secrets (overrides default config)
+    # Write git user config to local file from sops secrets (overrides default config)
     if [ -f "${config.sops.secrets.github_name.path}" ] && [ -f "${config.sops.secrets.github_email.path}" ]; then
-      ${pkgs.git}/bin/git config --global user.name "$(cat ${config.sops.secrets.github_name.path})"
-      ${pkgs.git}/bin/git config --global user.email "$(cat ${config.sops.secrets.github_email.path})"
+      mkdir -p ~/.config/git
+      cat > ~/.config/git/config.local << EOF
+    [user]
+    	name = $(cat ${config.sops.secrets.github_name.path})
+    	email = $(cat ${config.sops.secrets.github_email.path})
+    EOF
       echo "✅ Git user config updated from sops secrets"
     else
+      # Remove local config if no secrets, fall back to home-manager managed config
+      rm -f ~/.config/git/config.local
       echo "ℹ️  Using git config from user-config.nix (no sops secrets found)"
     fi
-    
+
     # Set up git credentials from sops secrets
     if [ -f "${config.sops.secrets.github_token.path}" ]; then
       echo "https://$(cat ${config.sops.secrets.github_token.path}):x-oauth-basic@github.com" > ~/.git-credentials

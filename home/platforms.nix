@@ -53,6 +53,7 @@ in
   home.packages = with pkgs; (
     # Common packages for all platforms
     [
+      age        # Required for sops-nix secret decryption
       curl
       fish
       htop
@@ -60,6 +61,7 @@ in
       nodejs_20  # LTS version - better binary cache coverage
       # npm is included with nodejs, no need for separate package
       ollama
+      sops       # Required for sops-nix secret management
       vim
     ]
     # Linux-specific packages (fonts that require fontconfig)
