@@ -24,15 +24,15 @@ in
   programs.git = {
     enable = true;
     # Git config managed by home-manager
-    extraConfig = {
+    settings = {
       credential.helper = "store";
       # Include local config for secrets (written by activation script)
       # This comes after user settings, so secrets override fallbacks
       include.path = "~/.config/git/config.local";
+      # Fallback user config (overridden by sops secrets in config.local)
+      user.name = userConfig.git.name;
+      user.email = userConfig.git.email;
     };
-    # Fallback user config (overridden by sops secrets in config.local)
-    settings.user.name = userConfig.git.name;
-    settings.user.email = userConfig.git.email;
   };
 
   # Set up git credentials and config via activation script that can read sops secrets
