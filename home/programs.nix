@@ -23,15 +23,16 @@ in
   
   programs.git = {
     enable = true;
-    # Base git config managed by home-manager
+    # Git config managed by home-manager
     extraConfig = {
       credential.helper = "store";
       # Include local config for secrets (written by activation script)
+      # This comes after user settings, so secrets override fallbacks
       include.path = "~/.config/git/config.local";
     };
     # Fallback user config (overridden by sops secrets in config.local)
-    userName = userConfig.git.name;
-    userEmail = userConfig.git.email;
+    settings.user.name = userConfig.git.name;
+    settings.user.email = userConfig.git.email;
   };
 
   # Set up git credentials and config via activation script that can read sops secrets
@@ -111,10 +112,10 @@ in
       gs = "git status";
     } // (if isDarwin then {
       # On macOS, use darwin-rebuild which manages both system and home-manager
-      hm-rebuild = "darwin-rebuild switch --flake ~/dotfiles#${pkgs.system}";
+      hm-rebuild = "darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}";
     } else {
       # On Linux, use standalone home-manager
-      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles#${userConfig.username}@${pkgs.system}";
+      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system}";
     }) // lib.optionalAttrs isLinux {
       # Portable VS Code launcher that works on any WSL system (Linux only)
       code = ''
