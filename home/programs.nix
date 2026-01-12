@@ -65,7 +65,9 @@ in
     enable = true;
 
     shellInit = ''
-      direnv hook fish | source
+      # Ensure npm global bin is in PATH (explicit for standalone home-manager compatibility)
+      fish_add_path --path $HOME/.npm-global/bin
+
       set -gx EDITOR nvim
       fish_vi_key_bindings
 
@@ -153,6 +155,11 @@ in
         return 1
       '';
     };
+  };
+
+  programs.direnv = {
+    enable = true;
+    nix-direnv.enable = true;  # Better caching for nix-shell/flakes
   };
 
   programs.starship = {
