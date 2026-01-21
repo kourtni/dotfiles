@@ -10,6 +10,7 @@ in
   networking.computerName = "CxGawd";
 
   # Nix configuration
+  nix.package = pkgs.nixVersions.latest;
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
     # Use binary caches to avoid building from source
@@ -49,8 +50,8 @@ in
   # Home Manager integration
   # This is configured in the flake.nix
 
-  # Auto upgrade nix package and the daemon service.
-  # services.nix-daemon.enable = true;
+  # Manage the Nix daemon (required for nix.package to take effect)
+  services.nix-daemon.enable = true;
 
   # Used for backwards compatibility, please read the changelog before changing.
   # $ darwin-rebuild changelog

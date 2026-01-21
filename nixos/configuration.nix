@@ -26,7 +26,8 @@ in
     options = [ "nofail" ];
   };
 
-  # Enable flakes
+  # Nix configuration
+  nix.package = pkgs.nixVersions.latest;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   
   networking.hostName = "wsl"; # <- must match the flake output key

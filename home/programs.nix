@@ -112,6 +112,41 @@ in
     functions = {
       ll = "ls -l";
       gs = "git status";
+      # Portable Nix upgrade command
+      nix-upgrade = ''
+        set -l system_type "$SYSTEM_TYPE"
+
+        # Fallback detection if SYSTEM_TYPE isn't set
+        if test -z "$system_type"
+          if test (uname) = "Darwin"
+            set system_type "darwin"
+          else if test -d /etc/nixos
+            set system_type "nixos"
+          else
+            set system_type "linux"
+          end
+        end
+
+        switch $system_type
+          case "darwin"
+            echo "Nix is managed by nix-darwin."
+            echo "Run: darwin-rebuild switch --flake ~/dotfiles"
+            echo ""
+            echo "To update nixpkgs (which includes Nix), first run:"
+            echo "  cd ~/dotfiles && nix flake update"
+          case "nixos" "nixos-wsl"
+            echo "Nix is managed by NixOS."
+            echo "Run: sudo nixos-rebuild switch --flake ~/dotfiles"
+            echo ""
+            echo "To update nixpkgs (which includes Nix), first run:"
+            echo "  cd ~/dotfiles && nix flake update"
+          case "*"
+            echo "Upgrading Nix on standalone Linux..."
+            echo "Current version: "(nix --version)
+            sudo nix upgrade-nix
+            echo "New version: "(nix --version)
+        end
+      '';
     } // (if isDarwin then {
       # On macOS, use darwin-rebuild which manages both system and home-manager
       hm-rebuild = "darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}";
