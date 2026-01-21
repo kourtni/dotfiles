@@ -27,7 +27,6 @@ in
   };
 
   # Nix configuration
-  nix.package = pkgs.nixVersions.latest;
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   
   networking.hostName = "wsl"; # <- must match the flake output key
@@ -54,6 +53,8 @@ in
   ];
 
   programs.fish.enable = true;
+
+  # command-not-found works with flakes via the programs-sqlite database
   programs.command-not-found.enable = true;
 
   # Enable nix-ld to run unpatched dynamic binaries on NixOS
