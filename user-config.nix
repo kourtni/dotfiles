@@ -1,20 +1,10 @@
-# User Configuration Template
-# Copy this file to user-config.nix and modify the values to match your setup
-
 {
-  # User settings
-  username = "your-username";
-  homeDirectory = "/home/your-username";  # or "/Users/your-username" on macOS
-  
-  # Git settings (can be overridden by sops secrets if configured)
+  username = "runner";
+  homeDirectory = "/home/runner";
   git = {
-    name = "Your Full Name";
-    email = "your.email@example.com";
+    name = "CI Runner";
+    email = "ci@example.com";
   };
-  
-  # Platform-specific paths
-  windowsUsername = "your-windows-username"; # Your Windows username for WSL VS Code integration
-  
-  # System settings
-  stateVersion = "24.11"; # Home Manager state version - see https://nix-community.github.io/home-manager/release-notes.html
+  windowsUsername = "runner";
+  stateVersion = "24.11";
 }
