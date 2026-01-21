@@ -54,6 +54,7 @@ in
   ];
 
   programs.fish.enable = true;
+  programs.command-not-found.enable = true;
 
   # Enable nix-ld to run unpatched dynamic binaries on NixOS
   programs.nix-ld.enable = true;
