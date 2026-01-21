@@ -18,6 +18,7 @@ in
 
   wsl.enable = true;
   wsl.defaultUser = userConfig.username;
+  wsl.interop.register = true;  # Enable Windows executable interop
 
   # Override problematic auto-generated mounts with nofail option
   fileSystems."/usr/lib/wsl/drivers" = lib.mkForce {
