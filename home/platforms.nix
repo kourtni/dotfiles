@@ -34,12 +34,12 @@ in
 {
   # Nix version check for standalone Linux (where Nix isn't managed declaratively)
   home.activation.nixVersionCheck = lib.mkIf (isLinux && !isNixOS) (config.lib.dag.entryAfter ["writeBoundary"] ''
-    # Get current Nix version
-    CURRENT_NIX=$(nix --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    # Get current Nix version (full semver including patch)
+    CURRENT_NIX=$(nix --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -1)
     # Get latest Nix version available in nixpkgs
-    LATEST_NIX=$(nix eval --raw nixpkgs#nixVersions.latest.version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' || echo "unknown")
+    LATEST_NIX=$(nix eval --raw nixpkgs#nixVersions.latest.version 2>/dev/null || echo "unknown")
 
-    if [ "$LATEST_NIX" != "unknown" ] && [ "$CURRENT_NIX" != "$LATEST_NIX" ]; then
+    if [ -n "$CURRENT_NIX" ] && [ "$LATEST_NIX" != "unknown" ] && [ "$CURRENT_NIX" != "$LATEST_NIX" ]; then
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "ℹ️  Nix upgrade available: $CURRENT_NIX → $LATEST_NIX"
       echo ""

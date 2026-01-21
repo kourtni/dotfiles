@@ -77,6 +77,8 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
+          # Note: PRs created with GITHUB_TOKEN won't trigger other workflows.
+          # Use a PAT or GitHub App token if CI checks are needed on these PRs.
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: update flake inputs"
           title: "chore: update flake inputs"
