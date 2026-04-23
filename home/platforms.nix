@@ -70,6 +70,7 @@ in
     # Common packages for all platforms
     [
       age        # Required for sops-nix secret decryption
+      bun        # Fast JavaScript runtime, bundler, and package manager
       curl
       fish
       htop
