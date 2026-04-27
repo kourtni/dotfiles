@@ -84,6 +84,7 @@ in
     ]
     # Linux-specific packages (fonts that require fontconfig)
     ++ lib.optionals isLinux [
+      bubblewrap   # Sandbox runtime used by OpenAI Codex CLI for shell exec
       nerd-fonts._0xproto
       nerd-fonts.droid-sans-mono
       nerd-fonts.fira-code
