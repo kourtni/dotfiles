@@ -247,4 +247,13 @@ in
     }
   );
 
+  # REPRODUCIBLE: Auto-install OpenAI Codex CLI via Home Manager activation
+  home.activation.codexCLI = config.lib.dag.entryAfter ["writeBoundary"] (
+    npmUtils.mkNpmPackageActivation {
+      packageName = "@openai/codex";
+      binaryName = "codex";
+      displayName = "OpenAI Codex CLI";
+    }
+  );
+
 }
