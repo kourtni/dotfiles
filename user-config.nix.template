@@ -16,5 +16,6 @@
   windowsUsername = "your-windows-username"; # Your Windows username for WSL VS Code integration
   
   # System settings
+  system = "x86_64-linux"; # Your system architecture (e.g., "x86_64-linux", "aarch64-linux", "aarch64-darwin")
   stateVersion = "24.11"; # Home Manager state version - see https://nix-community.github.io/home-manager/release-notes.html
 }

@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, antigravity-nix, ... }:
 
 let
   userConfig = import ../user-config.nix;
@@ -235,15 +235,6 @@ in
       packageName = "@anthropic-ai/claude-code";
       binaryName = "claude";
       displayName = "Claude Code";
-    }
-  );
-
-  # REPRODUCIBLE: Auto-install Google Gemini CLI via Home Manager activation
-  home.activation.geminiCLI = config.lib.dag.entryAfter ["writeBoundary"] (
-    npmUtils.mkNpmPackageActivation {
-      packageName = "@google/gemini-cli";
-      binaryName = "gemini";
-      displayName = "Google Gemini CLI";
     }
   );
 

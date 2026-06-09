@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, antigravity-nix, ... }:
 
 let
   # Base platform detection
@@ -69,6 +69,7 @@ in
   home.packages = with pkgs; (
     # Common packages for all platforms
     [
+      antigravity-nix.packages.${pkgs.system}.google-antigravity-cli
       age        # Required for sops-nix secret decryption
       bun        # Fast JavaScript runtime, bundler, and package manager
       curl

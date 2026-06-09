@@ -1,4 +1,4 @@
-{ config, home-manager, pkgs, lib, ... }:
+{ config, home-manager, pkgs, lib, antigravity-nix, ... }:
 
 let
   userConfig = import ../user-config.nix;
@@ -6,8 +6,8 @@ in
 {
   imports = [
     # Note: sops-nix is imported at the system level in flake.nix
-    (import ./programs.nix { inherit config pkgs lib; })
-    ./platforms.nix
+    (import ./programs.nix { inherit config pkgs lib antigravity-nix; })
+    (import ./platforms.nix { inherit config pkgs lib antigravity-nix; })
     ./hosts/default.nix
     ./mcp-servers.nix
   ];
@@ -35,6 +35,8 @@ in
   home.username = userConfig.username;
   home.homeDirectory = userConfig.homeDirectory;
   home.stateVersion = userConfig.stateVersion;
+
+  nixpkgs.config.allowUnfree = true;
 
   programs.home-manager.enable = true;
 

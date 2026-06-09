@@ -24,10 +24,14 @@
 
     flake-programs-sqlite.url = "github:wamserma/flake-programs-sqlite";
     flake-programs-sqlite.inputs.nixpkgs.follows = "nixpkgs";
+
+    antigravity-nix.url = "github:jacopone/antigravity-nix";
+    antigravity-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, nix-darwin, sops-nix, flake-programs-sqlite, ... }: 
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, nix-darwin, sops-nix, flake-programs-sqlite, antigravity-nix, ... }: 
     let
+      userConfig = import ./user-config.nix;
       # Supported systems
       supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
       
@@ -35,7 +39,7 @@
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       
       # Default system for NixOS configurations
-      defaultSystem = "x86_64-linux";
+      defaultSystem = userConfig.system;
       pkgs = import nixpkgs { system = defaultSystem; };
     in {
       # Used by `sudo nixos-rebuild switch --flake`
@@ -64,6 +68,7 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = { inherit antigravity-nix; };
             home-manager.users.${(import ./user-config.nix).username} = import ./home/default.nix;
             home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
           }
@@ -82,6 +87,7 @@
           username = (import ./user-config.nix).username;
           mkHomeConfig = system: home-manager.lib.homeManagerConfiguration {
             pkgs = import nixpkgs { inherit system; };
+            extraSpecialArgs = { inherit antigravity-nix; };
             modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
           };
         in {
@@ -103,6 +109,7 @@
               {
                 home-manager.useGlobalPkgs = true;
                 home-manager.useUserPackages = true;
+                home-manager.extraSpecialArgs = { inherit antigravity-nix; };
                 home-manager.users.${username} = import ./home/default.nix;
                 home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
               }
