@@ -36,16 +36,23 @@ in
     isNormalUser = true;
     shell = pkgs.fish;
     extraGroups = [ "wheel" ];
-    # Pin the UID to 1000. WSLg hardcodes /mnt/wslg/runtime-dir to UID 1000 and
-    # bind-mounts it over /run/user/<uid>; if the default user isn't 1000, that
-    # mount shadows logind's per-user runtime dir, breaking $XDG_RUNTIME_DIR and
-    # the systemd --user manager (so lingering can't work). NixOS-WSL also
-    # defaults its user to 1000. See nixos/migrate-uid-1000.sh for the one-time
-    # migration from the old 1001 account. Refs: microsoft/WSL#9689, NixOS-WSL#346.
+    # Pin the UID to 1000, the NixOS-WSL default, so the account stays aligned
+    # with the platform default and WSLg's runtime-dir expectations.
     uid = 1000;
     # Enable lingering so user systemd services run without an active login session
     linger = true;
   };
+
+  # WSLg mounts a root-owned tmpfs over /run/user/<uid> during early WSL init.
+  # That shadows the per-user runtime directory systemd-logind expects to own
+  # (0700, owned by the user), so pam_systemd refuses it, $XDG_RUNTIME_DIR is
+  # never set, and `user@<uid>.service` (the systemd --user manager) fails --
+  # which means lingering can't actually run any user services. Unmount WSLg's
+  # shadow mount right before user-runtime-dir creates the real directory.
+  # Refs: microsoft/WSL#9689, NixOS-WSL#346.
+  systemd.services."user-runtime-dir@".serviceConfig.ExecStartPre = [
+    "-${pkgs.util-linux}/bin/umount /run/user/%i"
+  ];
 
   time.timeZone = "America/Chicago";
   i18n.defaultLocale = "en_US.UTF-8";
