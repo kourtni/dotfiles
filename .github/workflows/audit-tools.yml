@@ -82,6 +82,10 @@ jobs:
             if [ "$archived" = "true" ]; then
               hard=1
               echo "- **$repo** — ⚠️ REPOSITORY ARCHIVED (last push $pushed)" >> prompt.md
+            elif [ "$archived" = "unknown" ]; then
+              # Don't let a failed/rate-limited API call masquerade as "active".
+              hard=1
+              echo "- **$repo** — ⚠️ COULD NOT VERIFY (GitHub API error or rate limit)" >> prompt.md
             else
               echo "- $repo — active (last push $pushed)" >> prompt.md
             fi
@@ -89,8 +93,8 @@ jobs:
 
           echo "" >> prompt.md
           echo "## Pinned release binaries (fetchurl)" >> prompt.md
-          # Match .../<owner>/<repo>/releases/download/<tag>/...
-          grep -rhoE 'github\.com/[^/]+/[^/]+/releases/download/[^/]+' . 2>/dev/null \
+          # Match .../<owner>/<repo>/releases/download/<tag>/... in Nix sources only
+          grep -rhoE --include='*.nix' --exclude-dir='.git' 'github\.com/[^/]+/[^/]+/releases/download/[^/]+' . 2>/dev/null \
             | sed -E 's#.*github\.com/([^/]+)/([^/]+)/releases/download/([^/]+).*#\1/\2 \3#' \
             | sort -u | while read -r repo pinned; do
               latest_tag=$(gh api "repos/$repo/releases/latest" --jq '.tag_name' 2>/dev/null || echo "unknown")
