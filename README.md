@@ -414,6 +414,40 @@ home-manager switch --flake .#$(whoami)@aarch64-darwin
 home-manager switch --flake .#$(whoami)@x86_64-linux
 ```
 
+### Automated maintenance (GitHub Actions)
+
+Two scheduled workflows keep the repo from going stale:
+
+- **`.github/workflows/update-flake.yml`** — weekly (Mondays 09:00 UTC). Runs
+  `nix flake update`, builds the `x86_64-linux` home config to catch breakage,
+  and opens a PR labeled `dependencies`. This keeps *versions* current
+  (including Nix itself, which ships via `nixpkgs`).
+- **`.github/workflows/audit-tools.yml`** — monthly (1st, 10:00 UTC). Checks
+  each externally-sourced tool (flake inputs, npm packages, pinned `fetchurl`
+  binaries) for **deprecation or supersession** — the kind of staleness
+  `nix flake update` can't detect (e.g. a tool being replaced by a different
+  one, as Gemini CLI was by Antigravity CLI). Authoritative signals (npm
+  deprecation, GitHub repo archival, release-tag drift) are gathered
+  deterministically; **GitHub Models** (included with Copilot, via
+  `actions/ai-inference` + the built-in `GITHUB_TOKEN` — **no external API key
+  required**) writes the summary and judges supersession. Opens/updates a single
+  issue labeled `tool-audit` when action is needed.
+
+#### TODO: broaden update-flake.yml CI validation
+
+The flake-update workflow currently only builds the `x86_64-linux` home config,
+because a plain Linux runner cannot validate the other targets:
+
+- [ ] **macOS / darwin** — evaluating a darwin config forces an
+  import-from-derivation that must *build* an `aarch64-darwin` derivation, which
+  a Linux runner can't do. Add a `macos-latest` matrix job that really builds it
+  (e.g. `homeConfigurations."runner@aarch64-darwin".activationPackage`, or
+  `darwin-rebuild build --flake .`).
+- [ ] **NixOS-WSL** — `nixosConfigurations.wsl` imports
+  `/etc/nixos/hardware-configuration.nix` by absolute path, which is
+  machine-specific, gitignored, and forbidden in pure flake eval. To validate in
+  CI, generate a stub `hardware-configuration.nix` and build with `--impure`.
+
 ## 🛠️ Customization
 
 ### Adding Packages

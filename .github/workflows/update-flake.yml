@@ -6,6 +6,11 @@ on:
     - cron: "0 9 * * 1"
   workflow_dispatch: # Allow manual triggering
 
+# Avoid overlapping runs racing on the same branch
+concurrency:
+  group: flake-update
+  cancel-in-progress: true
+
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -37,7 +42,9 @@ jobs:
       - name: Setup CI user config
         if: steps.changes.outputs.changed == 'true'
         run: |
-          # Create a working user-config.nix for CI builds
+          # Create a working user-config.nix for CI builds.
+          # `system` is set so the flake evaluates fully; it's only actually
+          # consumed by the nixos/darwin system configs (not built here).
           cat > user-config.nix << 'EOF'
           {
             username = "runner";
@@ -47,14 +54,28 @@ jobs:
               email = "ci@example.com";
             };
             windowsUsername = "runner";
+            system = "x86_64-linux";
             stateVersion = "24.11";
           }
           EOF
 
-      - name: Build home-manager config (x86_64-linux)
+      # --- Validation -------------------------------------------------------
+      # We build the x86_64-linux home config natively. We deliberately do NOT
+      # build the other configs here, because a plain Linux runner cannot:
+      #   * darwin / aarch64: evaluating them forces an import-from-derivation
+      #     that must BUILD a foreign-system derivation — impossible without a
+      #     matching runner (macOS) or emulation.
+      #   * nixosConfigurations.wsl: imports /etc/nixos/hardware-configuration.nix
+      #     by absolute path (machine-specific, gitignored), which is forbidden
+      #     in pure flake eval and absent in CI.
+      # See the repo docs for opt-in ways to validate those (macOS matrix job;
+      # impure WSL build with a stub hardware-configuration.nix).
+
+      - name: Build home config (x86_64-linux)
         if: steps.changes.outputs.changed == 'true'
         run: |
-          nix build '.#homeConfigurations."runner@x86_64-linux".activationPackage' --no-link
+          nix build '.#homeConfigurations."runner@x86_64-linux".activationPackage' --no-link --print-build-logs
+      # ----------------------------------------------------------------------
 
       - name: Generate update summary
         if: steps.changes.outputs.changed == 'true'
@@ -69,10 +90,16 @@ jobs:
             nix flake metadata --json | jq -r '.locks.nodes | to_entries[] | select(.value.locked.rev) | "\(.key): \(.value.locked.rev[0:7])"'
             echo '```'
             echo ''
+            echo '## Validated in CI (x86_64-linux runner)'
+            echo '- [x] Built `homeConfigurations."*@x86_64-linux"` (native build)'
+            echo '- [ ] darwin / aarch64 NOT validated here (needs a macOS runner)'
+            echo '- [ ] `nixosConfigurations.wsl` NOT validated here (absolute hardware-configuration.nix import)'
+            echo ''
             echo '## Checklist'
             echo '- [ ] Review the changes in `flake.lock`'
-            echo '- [ ] Test locally with `nix run .#home-manager -- switch --flake .`'
-            echo '- [ ] Verify on other platforms if needed (macOS, WSL)'
+            echo '- [ ] Test on WSL: `sudo nixos-rebuild switch --flake .#wsl`'
+            echo '- [ ] Test home config: `nix run .#home-manager -- switch --flake .`'
+            echo '- [ ] On a Mac: `darwin-rebuild build --flake .` if a darwin-specific change is suspected'
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 

@@ -1,0 +1,154 @@
+name: Audit Tools for Deprecation
+
+# Catches the class of staleness that `nix flake update` CANNOT: a tool being
+# deprecated, unmaintained, or superseded by a DIFFERENT tool (e.g. Gemini CLI
+# -> Antigravity CLI). Version bumps are handled by update-flake.yml.
+#
+# Uses ONLY the built-in GITHUB_TOKEN — no external API key required:
+#   * authoritative signals are gathered deterministically (npm deprecation,
+#     GitHub repo archival, release-tag drift);
+#   * GitHub Models (included with Copilot) writes the summary and judges
+#     supersession, via actions/ai-inference and `models: read`.
+# Opens/updates a single issue labeled `tool-audit` when action is needed.
+
+on:
+  schedule:
+    # 10:00 UTC on the 1st of every month
+    - cron: "0 10 1 * *"
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: audit-tools
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      models: read # GitHub Models inference via GITHUB_TOKEN
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Gather deterministic signals
+        id: gather
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          hard=0
+          {
+            echo "# Tool audit input"
+            echo
+            echo "Assess the tools below for DEPRECATION and SUPERSESSION only."
+            echo "Hard signals (deprecation, repo archived, release-tag drift) are"
+            echo "pre-computed and authoritative. Your job: (1) confirm/explain each"
+            echo "hard signal briefly, and (2) using your own knowledge, flag any tool"
+            echo "that has been SUPERSEDED by a different recommended tool. Be"
+            echo "conservative — do not invent deprecations."
+            echo
+            echo "Reply in GitHub-flavored markdown. The VERY FIRST line must be"
+            echo "exactly 'STATUS: ACTION_NEEDED' or 'STATUS: OK'. Then a short table"
+            echo "(Tool | Source | Finding | Recommendation) followed by any details."
+            echo
+            echo "## npm packages (installed at Home Manager activation)"
+          } > prompt.md
+
+          # npm packages referenced by mkNpmPackageActivation
+          for pkg in $(grep -rhoE 'packageName = "[^"]+"' home | sed -E 's/.*"([^"]+)".*/\1/' | sort -u); do
+            latest=$(npm view "$pkg" version 2>/dev/null || echo "unknown")
+            dep=$(npm view "$pkg" deprecated 2>/dev/null || echo "")
+            modified=$(npm view "$pkg" time.modified 2>/dev/null || echo "unknown")
+            if [ -n "$dep" ]; then
+              hard=1
+              echo "- **$pkg** — latest \`$latest\`, last publish $modified — ⚠️ DEPRECATED: $dep" >> prompt.md
+            else
+              echo "- $pkg — latest \`$latest\`, last publish $modified — no npm deprecation flag" >> prompt.md
+            fi
+          done
+
+          echo "" >> prompt.md
+          echo "## Flake inputs (github repos)" >> prompt.md
+          for repo in $(grep -oE 'github:[^/"]+/[^/"]+' flake.nix | sed 's#github:##' | sort -u); do
+            info=$(gh api "repos/$repo" --jq '"\(.archived)|\(.pushed_at)"' 2>/dev/null || echo "unknown|unknown")
+            archived=${info%%|*}; pushed=${info##*|}
+            if [ "$archived" = "true" ]; then
+              hard=1
+              echo "- **$repo** — ⚠️ REPOSITORY ARCHIVED (last push $pushed)" >> prompt.md
+            else
+              echo "- $repo — active (last push $pushed)" >> prompt.md
+            fi
+          done
+
+          echo "" >> prompt.md
+          echo "## Pinned release binaries (fetchurl)" >> prompt.md
+          # Match .../<owner>/<repo>/releases/download/<tag>/...
+          grep -rhoE 'github\.com/[^/]+/[^/]+/releases/download/[^/]+' . 2>/dev/null \
+            | sed -E 's#.*github\.com/([^/]+)/([^/]+)/releases/download/([^/]+).*#\1/\2 \3#' \
+            | sort -u | while read -r repo pinned; do
+              latest_tag=$(gh api "repos/$repo/releases/latest" --jq '.tag_name' 2>/dev/null || echo "unknown")
+              if [ "$latest_tag" != "unknown" ] && [ "$latest_tag" != "$pinned" ]; then
+                echo "- **$repo** — pinned \`$pinned\`, latest release \`$latest_tag\` — ⚠️ BEHIND" >> prompt.md
+              else
+                echo "- $repo — pinned \`$pinned\` (latest \`$latest_tag\`)" >> prompt.md
+              fi
+          done
+          # Release-tag drift is detected in the subshell above; surface it too.
+          if grep -q '⚠️ BEHIND' prompt.md; then hard=1; fi
+
+          echo "" >> prompt.md
+          echo "## Other pinned tools (judge by knowledge)" >> prompt.md
+          grep -qE 'nodejs_[0-9]+' home/*.nix && \
+            echo "- $(grep -rhoE 'nodejs_[0-9]+' home | sort -u | tr '\n' ' ') — pinned Node.js major(s)" >> prompt.md || true
+
+          echo "hard_signal=$hard" >> "$GITHUB_OUTPUT"
+          echo "----- prompt.md -----"; cat prompt.md
+
+      - name: Assess with GitHub Models
+        id: ai
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o
+          prompt-file: prompt.md
+          max-tokens: 1500
+
+      - name: Open or update audit issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HARD_SIGNAL: ${{ steps.gather.outputs.hard_signal }}
+          AI_RESPONSE: ${{ steps.ai.outputs.response }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          printf '%s\n' "$AI_RESPONSE" > report.md
+          printf '\n\n---\n_Automated tool audit — [run log](%s)_\n' "$RUN_URL" >> report.md
+
+          action_needed=0
+          if [ "$HARD_SIGNAL" = "1" ]; then action_needed=1; fi
+          if head -n1 report.md | grep -q 'ACTION_NEEDED'; then action_needed=1; fi
+
+          existing=$(gh issue list --label tool-audit --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ "$action_needed" = "1" ]; then
+            gh label create tool-audit --color BFDADC --description "Automated tool deprecation audit" --force || true
+            if [ -n "$existing" ]; then
+              gh issue edit "$existing" --body-file report.md
+              gh issue comment "$existing" --body "Re-audited: still needs attention (see updated body). Run: $RUN_URL"
+              echo "Updated issue #$existing"
+            else
+              gh issue create --title "Tool audit: action needed" --label tool-audit --body-file report.md
+              echo "Opened new audit issue"
+            fi
+          else
+            echo "No action needed."
+            if [ -n "$existing" ]; then
+              gh issue comment "$existing" --body "Latest audit is clean. Run: $RUN_URL"
+            fi
+          fi
