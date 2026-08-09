@@ -129,6 +129,7 @@ jobs:
           echo "----- findings.md -----"; cat findings.md
 
       - name: Install GitHub Copilot CLI
+        continue-on-error: true # transient npm failure must not fail the audit
         run: npm install -g @github/copilot
 
       - name: Assess with GitHub Copilot
