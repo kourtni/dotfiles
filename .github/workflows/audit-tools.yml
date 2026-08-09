@@ -8,14 +8,17 @@ name: Audit Tools for Deprecation
 # Two layers:
 #   1. Deterministic, authoritative signals (need no model): npm deprecation
 #      flags, GitHub repo archival, release-tag drift for pinned fetchurl bins.
-#   2. GitHub Copilot judges SUPERSESSION and writes the summary, via the
-#      Copilot CLI + actions/ai-inference.
+#      These ALWAYS run and, on their own, drive issue creation.
+#   2. GitHub Copilot judges SUPERSESSION and writes a nicer summary, via the
+#      Copilot CLI + actions/ai-inference. This layer is OPTIONAL: it is skipped
+#      when COPILOT_PAT is absent and is allowed to fail without failing the job,
+#      in which case the issue falls back to the deterministic findings.
 #
 # NOTE: the free GitHub Models endpoint was retired 2026-07-30. actions/ai-inference
 # now runs on the GitHub Copilot CLI, which authenticates with a Copilot-enabled
-# token — NOT the built-in GITHUB_TOKEN. Add a repo secret `COPILOT_PAT`:
-# a (fine-grained) Personal Access Token from an account with an active Copilot
-# subscription. Opens/updates a single issue labeled `tool-audit` when needed.
+# token — NOT the built-in GITHUB_TOKEN. To enable layer 2, add a repo secret
+# `COPILOT_PAT`: a (fine-grained) Personal Access Token from an account with an
+# active Copilot subscription. Opens/updates a single issue labeled `tool-audit`.
 
 on:
   schedule:
@@ -33,6 +36,11 @@ jobs:
     permissions:
       contents: read
       issues: write
+    env:
+      # Whether the optional Copilot layer can run. Mapped to a boolean here so
+      # step-level `if:` can gate on it (the `secrets` context isn't available
+      # directly in step conditionals).
+      HAS_COPILOT_PAT: ${{ secrets.COPILOT_PAT != '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,80 +56,89 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -uo pipefail
-          {
-            echo "# Tool audit input"
-            echo
-            echo "Assess the tools below for DEPRECATION and SUPERSESSION only."
-            echo "Hard signals (deprecation, repo archived, release-tag drift) are"
-            echo "pre-computed and authoritative. Your job: (1) confirm/explain each"
-            echo "hard signal briefly, and (2) using your own knowledge, flag any tool"
-            echo "that has been SUPERSEDED by a different recommended tool. Be"
-            echo "conservative — do not invent deprecations."
-            echo
-            echo "Reply in GitHub-flavored markdown. The VERY FIRST line must be"
-            echo "exactly 'STATUS: ACTION_NEEDED' or 'STATUS: OK'. Then a short table"
-            echo "(Tool | Source | Finding | Recommendation) followed by any details."
-            echo
-            echo "## npm packages (installed at Home Manager activation)"
-          } > prompt.md
+          # findings.md = clean, human-readable deterministic report (also the
+          # fallback issue body). prompt.md = findings wrapped with instructions
+          # for the optional Copilot layer.
+          : > findings.md
 
-          # npm packages referenced by mkNpmPackageActivation
+          echo "### npm packages (installed at Home Manager activation)" >> findings.md
           for pkg in $(grep -rhoE 'packageName = "[^"]+"' home | sed -E 's/.*"([^"]+)".*/\1/' | sort -u); do
             latest=$(npm view "$pkg" version 2>/dev/null || echo "unknown")
             dep=$(npm view "$pkg" deprecated 2>/dev/null || echo "")
             modified=$(npm view "$pkg" time.modified 2>/dev/null || echo "unknown")
             if [ -n "$dep" ]; then
-              echo "- **$pkg** — latest \`$latest\`, last publish $modified — ⚠️ DEPRECATED: $dep" >> prompt.md
+              echo "- **$pkg** — latest \`$latest\`, last publish $modified — ⚠️ DEPRECATED: $dep" >> findings.md
             else
-              echo "- $pkg — latest \`$latest\`, last publish $modified — no npm deprecation flag" >> prompt.md
+              echo "- $pkg — latest \`$latest\`, last publish $modified — ✅ no deprecation flag" >> findings.md
             fi
           done
 
-          echo "" >> prompt.md
-          echo "## Flake inputs (github repos)" >> prompt.md
+          echo "" >> findings.md
+          echo "### Flake inputs (GitHub repos)" >> findings.md
           for repo in $(grep -oE 'github:[^/"]+/[^/"]+' flake.nix | sed 's#github:##' | sort -u); do
             info=$(gh api "repos/$repo" --jq '"\(.archived)|\(.pushed_at)"' 2>/dev/null || echo "unknown|unknown")
             archived=${info%%|*}; pushed=${info##*|}
             if [ "$archived" = "true" ]; then
-              echo "- **$repo** — ⚠️ REPOSITORY ARCHIVED (last push $pushed)" >> prompt.md
+              echo "- **$repo** — ⚠️ REPOSITORY ARCHIVED (last push $pushed)" >> findings.md
             elif [ "$archived" = "unknown" ]; then
               # Don't let a failed/rate-limited API call masquerade as "active".
-              echo "- **$repo** — ⚠️ COULD NOT VERIFY (GitHub API error or rate limit)" >> prompt.md
+              echo "- **$repo** — ⚠️ COULD NOT VERIFY (GitHub API error or rate limit)" >> findings.md
             else
-              echo "- $repo — active (last push $pushed)" >> prompt.md
+              echo "- $repo — ✅ active (last push $pushed)" >> findings.md
             fi
           done
 
-          echo "" >> prompt.md
-          echo "## Pinned release binaries (fetchurl)" >> prompt.md
+          echo "" >> findings.md
+          echo "### Pinned release binaries (fetchurl)" >> findings.md
           # Match .../<owner>/<repo>/releases/download/<tag>/... in Nix sources only
           grep -rhoE --include='*.nix' --exclude-dir='.git' 'github\.com/[^/]+/[^/]+/releases/download/[^/]+' . 2>/dev/null \
             | sed -E 's#.*github\.com/([^/]+)/([^/]+)/releases/download/([^/]+).*#\1/\2 \3#' \
             | sort -u | while read -r repo pinned; do
               latest_tag=$(gh api "repos/$repo/releases/latest" --jq '.tag_name' 2>/dev/null || echo "unknown")
               if [ "$latest_tag" != "unknown" ] && [ "$latest_tag" != "$pinned" ]; then
-                echo "- **$repo** — pinned \`$pinned\`, latest release \`$latest_tag\` — ⚠️ BEHIND" >> prompt.md
+                echo "- **$repo** — pinned \`$pinned\`, latest release \`$latest_tag\` — ⚠️ BEHIND" >> findings.md
               else
-                echo "- $repo — pinned \`$pinned\` (latest \`$latest_tag\`)" >> prompt.md
+                echo "- $repo — pinned \`$pinned\` (latest \`$latest_tag\`) — ✅" >> findings.md
               fi
           done
 
-          echo "" >> prompt.md
-          echo "## Other pinned tools (judge by knowledge)" >> prompt.md
+          echo "" >> findings.md
+          echo "### Other pinned tools (supersession — judge by knowledge)" >> findings.md
           nodejs_pins=$(grep -rhoE 'nodejs_[0-9]+' home 2>/dev/null | sort -u | tr '\n' ' ')
-          [ -n "$nodejs_pins" ] && echo "- Pinned Node.js major(s): \`$nodejs_pins\`" >> prompt.md
+          [ -n "$nodejs_pins" ] && echo "- Pinned Node.js major(s): \`$nodejs_pins\`" >> findings.md
 
           # A warning marker (⚠️) anywhere means human attention is needed,
-          # independent of what the model concludes.
-          if grep -q '⚠️' prompt.md; then hard=1; else hard=0; fi
+          # independent of whether the optional Copilot layer runs.
+          if grep -q '⚠️' findings.md; then hard=1; else hard=0; fi
           echo "hard_signal=$hard" >> "$GITHUB_OUTPUT"
-          echo "----- prompt.md -----"; cat prompt.md
 
+          # Wrap findings with instructions for the optional Copilot layer.
+          {
+            echo "# Tool audit input"
+            echo
+            echo "Assess the tools below for DEPRECATION and SUPERSESSION only."
+            echo "The ⚠️ markers are pre-computed and authoritative. Your job:"
+            echo "(1) briefly confirm/explain each ⚠️, and (2) using your own"
+            echo "knowledge, flag any tool SUPERSEDED by a different recommended"
+            echo "tool. Be conservative — do not invent deprecations."
+            echo
+            echo "Reply in GitHub-flavored markdown. The VERY FIRST line must be"
+            echo "exactly 'STATUS: ACTION_NEEDED' or 'STATUS: OK'. Then a short"
+            echo "table (Tool | Source | Finding | Recommendation), then details."
+            echo
+            cat findings.md
+          } > prompt.md
+          echo "----- findings.md -----"; cat findings.md
+
+      # ---- Optional AI layer: skipped without COPILOT_PAT, never fatal --------
       - name: Install GitHub Copilot CLI
+        if: env.HAS_COPILOT_PAT == 'true'
         run: npm install -g @github/copilot
 
       - name: Assess with GitHub Copilot
         id: ai
+        if: env.HAS_COPILOT_PAT == 'true'
+        continue-on-error: true # an inference error must not block issue creation
         uses: actions/ai-inference@v1
         env:
           # A Copilot-enabled token is required — the built-in GITHUB_TOKEN
@@ -133,8 +150,10 @@ jobs:
           model: gpt-4.1
           prompt-file: prompt.md
           max-tokens: 1500
+      # ------------------------------------------------------------------------
 
       - name: Open or update audit issue
+        if: always() # run regardless of the optional AI layer's outcome
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HARD_SIGNAL: ${{ steps.gather.outputs.hard_signal }}
@@ -142,7 +161,20 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
-          printf '%s\n' "$AI_RESPONSE" > report.md
+
+          # Prefer the Copilot summary; fall back to the deterministic findings
+          # if the AI layer was skipped or failed (empty response).
+          if [ -n "${AI_RESPONSE//[$'\n\t ']/}" ]; then
+            printf '%s\n' "$AI_RESPONSE" > report.md
+          else
+            {
+              echo "## 🔎 Tool freshness audit (deterministic only)"
+              echo
+              echo "_Copilot assessment unavailable (no \`COPILOT_PAT\` or inference error), so this report is the deterministic signals only; supersession was not judged._"
+              echo
+              cat findings.md
+            } > report.md
+          fi
           printf '\n\n---\n_Automated tool audit — [run log](%s)_\n' "$RUN_URL" >> report.md
 
           action_needed=0
