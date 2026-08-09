@@ -2,14 +2,20 @@ name: Audit Tools for Deprecation
 
 # Catches the class of staleness that `nix flake update` CANNOT: a tool being
 # deprecated, unmaintained, or superseded by a DIFFERENT tool (e.g. Gemini CLI
-# -> Antigravity CLI). Version bumps are handled by update-flake.yml.
+# -> Antigravity CLI). Version bumps of flake inputs are handled by
+# update-flake.yml.
 #
-# Uses ONLY the built-in GITHUB_TOKEN — no external API key required:
-#   * authoritative signals are gathered deterministically (npm deprecation,
-#     GitHub repo archival, release-tag drift);
-#   * GitHub Models (included with Copilot) writes the summary and judges
-#     supersession, via actions/ai-inference and `models: read`.
-# Opens/updates a single issue labeled `tool-audit` when action is needed.
+# Two layers:
+#   1. Deterministic, authoritative signals (need no model): npm deprecation
+#      flags, GitHub repo archival, release-tag drift for pinned fetchurl bins.
+#   2. GitHub Copilot judges SUPERSESSION and writes the summary, via the
+#      Copilot CLI + actions/ai-inference.
+#
+# NOTE: the free GitHub Models endpoint was retired 2026-07-30. actions/ai-inference
+# now runs on the GitHub Copilot CLI, which authenticates with a Copilot-enabled
+# token — NOT the built-in GITHUB_TOKEN. Add a repo secret `COPILOT_PAT`:
+# a (fine-grained) Personal Access Token from an account with an active Copilot
+# subscription. Opens/updates a single issue labeled `tool-audit` when needed.
 
 on:
   schedule:
@@ -27,7 +33,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-      models: read # GitHub Models inference via GITHUB_TOKEN
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Gather deterministic signals
         id: gather
@@ -43,7 +48,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -uo pipefail
-          hard=0
           {
             echo "# Tool audit input"
             echo
@@ -67,7 +71,6 @@ jobs:
             dep=$(npm view "$pkg" deprecated 2>/dev/null || echo "")
             modified=$(npm view "$pkg" time.modified 2>/dev/null || echo "unknown")
             if [ -n "$dep" ]; then
-              hard=1
               echo "- **$pkg** — latest \`$latest\`, last publish $modified — ⚠️ DEPRECATED: $dep" >> prompt.md
             else
               echo "- $pkg — latest \`$latest\`, last publish $modified — no npm deprecation flag" >> prompt.md
@@ -80,11 +83,9 @@ jobs:
             info=$(gh api "repos/$repo" --jq '"\(.archived)|\(.pushed_at)"' 2>/dev/null || echo "unknown|unknown")
             archived=${info%%|*}; pushed=${info##*|}
             if [ "$archived" = "true" ]; then
-              hard=1
               echo "- **$repo** — ⚠️ REPOSITORY ARCHIVED (last push $pushed)" >> prompt.md
             elif [ "$archived" = "unknown" ]; then
               # Don't let a failed/rate-limited API call masquerade as "active".
-              hard=1
               echo "- **$repo** — ⚠️ COULD NOT VERIFY (GitHub API error or rate limit)" >> prompt.md
             else
               echo "- $repo — active (last push $pushed)" >> prompt.md
@@ -104,22 +105,32 @@ jobs:
                 echo "- $repo — pinned \`$pinned\` (latest \`$latest_tag\`)" >> prompt.md
               fi
           done
-          # Release-tag drift is detected in the subshell above; surface it too.
-          if grep -q '⚠️ BEHIND' prompt.md; then hard=1; fi
 
           echo "" >> prompt.md
           echo "## Other pinned tools (judge by knowledge)" >> prompt.md
-          grep -qE 'nodejs_[0-9]+' home/*.nix && \
-            echo "- $(grep -rhoE 'nodejs_[0-9]+' home | sort -u | tr '\n' ' ') — pinned Node.js major(s)" >> prompt.md || true
+          nodejs_pins=$(grep -rhoE 'nodejs_[0-9]+' home 2>/dev/null | sort -u | tr '\n' ' ')
+          [ -n "$nodejs_pins" ] && echo "- Pinned Node.js major(s): \`$nodejs_pins\`" >> prompt.md
 
+          # A warning marker (⚠️) anywhere means human attention is needed,
+          # independent of what the model concludes.
+          if grep -q '⚠️' prompt.md; then hard=1; else hard=0; fi
           echo "hard_signal=$hard" >> "$GITHUB_OUTPUT"
           echo "----- prompt.md -----"; cat prompt.md
 
-      - name: Assess with GitHub Models
+      - name: Install GitHub Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Assess with GitHub Copilot
         id: ai
         uses: actions/ai-inference@v1
+        env:
+          # A Copilot-enabled token is required — the built-in GITHUB_TOKEN
+          # does NOT work. Create secret COPILOT_PAT (see header comment).
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
         with:
-          model: openai/gpt-4o
+          # gpt-4.1 is the documented default and widely available; swap to
+          # claude-sonnet-4.5 if your Copilot plan includes it.
+          model: gpt-4.1
           prompt-file: prompt.md
           max-tokens: 1500
 
@@ -153,6 +164,7 @@ jobs:
           else
             echo "No action needed."
             if [ -n "$existing" ]; then
-              gh issue comment "$existing" --body "Latest audit is clean. Run: $RUN_URL"
+              gh issue comment "$existing" --body "Latest audit is clean — closing. Run: $RUN_URL"
+              gh issue close "$existing"
             fi
           fi
