@@ -429,14 +429,15 @@ Two scheduled workflows keep the repo from going stale:
   one, as Gemini CLI was by Antigravity CLI). Authoritative signals (npm
   deprecation, GitHub repo archival, release-tag drift) are gathered
   deterministically with the built-in `GITHUB_TOKEN`; **GitHub Copilot** (via
-  the Copilot CLI + `actions/ai-inference`) writes the summary and judges
+  the Copilot CLI + `actions/ai-inference@v3`) writes the summary and judges
   supersession. Opens/updates a single issue labeled `tool-audit` when action is
   needed, and closes it when clean.
-  - **Requires a `COPILOT_PAT` repository secret**: a Personal Access Token from
-    an account with an active **Copilot subscription**. The free GitHub Models
-    endpoint (which needed no secret) was retired 2026-07-30; `actions/ai-inference`
-    now runs on the Copilot CLI, which the built-in `GITHUB_TOKEN` can't
-    authenticate.
+  - **No secret required.** The Copilot layer authenticates with the built-in
+    `GITHUB_TOKEN` via the `copilot-requests: write` permission (the free GitHub
+    Models endpoint was retired 2026-07-30). **Prerequisite:** the account/org
+    that provides your Copilot seat must have the **Copilot CLI policy enabled**
+    ("Allow use of Copilot CLI"). If it isn't, the Copilot step fails gracefully
+    and the issue falls back to the deterministic findings.
 
 #### TODO: broaden update-flake.yml CI validation
 
