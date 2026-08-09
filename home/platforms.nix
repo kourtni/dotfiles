@@ -76,7 +76,7 @@ in
       fish
       htop
       jq
-      nodejs_20  # LTS version - better binary cache coverage
+      nodejs_24  # LTS version - better binary cache coverage
       # npm is included with nodejs, no need for separate package
       ollama
       opencode   # AI coding agent for the terminal
