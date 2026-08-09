@@ -428,10 +428,15 @@ Two scheduled workflows keep the repo from going stale:
   `nix flake update` can't detect (e.g. a tool being replaced by a different
   one, as Gemini CLI was by Antigravity CLI). Authoritative signals (npm
   deprecation, GitHub repo archival, release-tag drift) are gathered
-  deterministically; **GitHub Models** (included with Copilot, via
-  `actions/ai-inference` + the built-in `GITHUB_TOKEN` — **no external API key
-  required**) writes the summary and judges supersession. Opens/updates a single
-  issue labeled `tool-audit` when action is needed.
+  deterministically with the built-in `GITHUB_TOKEN`; **GitHub Copilot** (via
+  the Copilot CLI + `actions/ai-inference`) writes the summary and judges
+  supersession. Opens/updates a single issue labeled `tool-audit` when action is
+  needed, and closes it when clean.
+  - **Requires a `COPILOT_PAT` repository secret**: a Personal Access Token from
+    an account with an active **Copilot subscription**. The free GitHub Models
+    endpoint (which needed no secret) was retired 2026-07-30; `actions/ai-inference`
+    now runs on the Copilot CLI, which the built-in `GITHUB_TOKEN` can't
+    authenticate.
 
 #### TODO: broaden update-flake.yml CI validation
 
