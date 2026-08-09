@@ -139,7 +139,10 @@ jobs:
         id: ai
         if: env.HAS_COPILOT_PAT == 'true'
         continue-on-error: true # an inference error must not block issue creation
-        uses: actions/ai-inference@v1
+        # v3+ is Copilot-only (shells out to the Copilot CLI installed above).
+        # Do NOT use @v1/@v2 — those still target the retired GitHub Models
+        # endpoint (models.github.ai) and fail with HTTP 410.
+        uses: actions/ai-inference@v3
         env:
           # A Copilot-enabled token is required — the built-in GITHUB_TOKEN
           # does NOT work. Create secret COPILOT_PAT (see header comment).
@@ -149,7 +152,6 @@ jobs:
           # claude-sonnet-4.5 if your Copilot plan includes it.
           model: gpt-4.1
           prompt-file: prompt.md
-          max-tokens: 1500
       # ------------------------------------------------------------------------
 
       - name: Open or update audit issue
