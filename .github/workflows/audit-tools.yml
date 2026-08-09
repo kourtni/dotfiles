@@ -10,15 +10,17 @@ name: Audit Tools for Deprecation
 #      flags, GitHub repo archival, release-tag drift for pinned fetchurl bins.
 #      These ALWAYS run and, on their own, drive issue creation.
 #   2. GitHub Copilot judges SUPERSESSION and writes a nicer summary, via the
-#      Copilot CLI + actions/ai-inference. This layer is OPTIONAL: it is skipped
-#      when COPILOT_PAT is absent and is allowed to fail without failing the job,
-#      in which case the issue falls back to the deterministic findings.
+#      Copilot CLI + actions/ai-inference@v3. This layer is allowed to fail
+#      without failing the job; the issue then falls back to layer 1.
 #
-# NOTE: the free GitHub Models endpoint was retired 2026-07-30. actions/ai-inference
-# now runs on the GitHub Copilot CLI, which authenticates with a Copilot-enabled
-# token — NOT the built-in GITHUB_TOKEN. To enable layer 2, add a repo secret
-# `COPILOT_PAT`: a (fine-grained) Personal Access Token from an account with an
-# active Copilot subscription. Opens/updates a single issue labeled `tool-audit`.
+# AUTH: the free GitHub Models endpoint was retired 2026-07-30; ai-inference@v3
+# shells out to the GitHub Copilot CLI. This workflow authenticates the CLI with
+# the built-in GITHUB_TOKEN via the `copilot-requests: write` permission — no PAT
+# or repo secret required. Prerequisite: the account/org providing the Copilot
+# seat must have the Copilot CLI policy enabled ("Allow use of Copilot CLI").
+# If it isn't, the Copilot step fails gracefully and layer 1 still runs.
+# `model: ""` lets the CLI pick an org-allowed default (a pinned model like
+# gpt-4.1 may not be enabled for every plan). Opens/updates one `tool-audit` issue.
 
 on:
   schedule:
@@ -36,11 +38,7 @@ jobs:
     permissions:
       contents: read
       issues: write
-    env:
-      # Whether the optional Copilot layer can run. Mapped to a boolean here so
-      # step-level `if:` can gate on it (the `secrets` context isn't available
-      # directly in step conditionals).
-      HAS_COPILOT_PAT: ${{ secrets.COPILOT_PAT != '' }}
+      copilot-requests: write # lets the built-in GITHUB_TOKEN make Copilot requests
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -58,7 +56,7 @@ jobs:
           set -uo pipefail
           # findings.md = clean, human-readable deterministic report (also the
           # fallback issue body). prompt.md = findings wrapped with instructions
-          # for the optional Copilot layer.
+          # for the Copilot layer.
           : > findings.md
 
           echo "### npm packages (installed at Home Manager activation)" >> findings.md
@@ -108,11 +106,11 @@ jobs:
           [ -n "$nodejs_pins" ] && echo "- Pinned Node.js major(s): \`$nodejs_pins\`" >> findings.md
 
           # A warning marker (⚠️) anywhere means human attention is needed,
-          # independent of whether the optional Copilot layer runs.
+          # independent of whether the Copilot layer runs.
           if grep -q '⚠️' findings.md; then hard=1; else hard=0; fi
           echo "hard_signal=$hard" >> "$GITHUB_OUTPUT"
 
-          # Wrap findings with instructions for the optional Copilot layer.
+          # Wrap findings with instructions for the Copilot layer.
           {
             echo "# Tool audit input"
             echo
@@ -130,32 +128,26 @@ jobs:
           } > prompt.md
           echo "----- findings.md -----"; cat findings.md
 
-      # ---- Optional AI layer: skipped without COPILOT_PAT, never fatal --------
       - name: Install GitHub Copilot CLI
-        if: env.HAS_COPILOT_PAT == 'true'
         run: npm install -g @github/copilot
 
       - name: Assess with GitHub Copilot
         id: ai
-        if: env.HAS_COPILOT_PAT == 'true'
         continue-on-error: true # an inference error must not block issue creation
         # v3+ is Copilot-only (shells out to the Copilot CLI installed above).
         # Do NOT use @v1/@v2 — those still target the retired GitHub Models
         # endpoint (models.github.ai) and fail with HTTP 410.
         uses: actions/ai-inference@v3
         env:
-          # A Copilot-enabled token is required — the built-in GITHUB_TOKEN
-          # does NOT work. Create secret COPILOT_PAT (see header comment).
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_PAT }}
+          # Built-in Actions token; authorized for Copilot by the
+          # `copilot-requests: write` permission above. No PAT/secret needed.
+          COPILOT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # gpt-4.1 is the documented default and widely available; swap to
-          # claude-sonnet-4.5 if your Copilot plan includes it.
-          model: gpt-4.1
+          model: "" # let the Copilot CLI pick an org-allowed default
           prompt-file: prompt.md
-      # ------------------------------------------------------------------------
 
       - name: Open or update audit issue
-        if: always() # run regardless of the optional AI layer's outcome
+        if: always() # run regardless of the Copilot layer's outcome
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HARD_SIGNAL: ${{ steps.gather.outputs.hard_signal }}
@@ -165,14 +157,14 @@ jobs:
           set -uo pipefail
 
           # Prefer the Copilot summary; fall back to the deterministic findings
-          # if the AI layer was skipped or failed (empty response).
+          # if the Copilot layer was unavailable or errored (empty response).
           if [ -n "${AI_RESPONSE//[$'\n\t ']/}" ]; then
             printf '%s\n' "$AI_RESPONSE" > report.md
           else
             {
               echo "## 🔎 Tool freshness audit (deterministic only)"
               echo
-              echo "_Copilot assessment unavailable (no \`COPILOT_PAT\` or inference error), so this report is the deterministic signals only; supersession was not judged._"
+              echo "_Copilot assessment unavailable (inference error or Copilot CLI policy disabled), so this report is the deterministic signals only; supersession was not judged._"
               echo
               cat findings.md
             } > report.md
