@@ -1,4 +1,4 @@
-{ config, pkgs, lib, antigravity-nix, ... }:
+{ config, pkgs, lib, ... }:
 
 let
   userConfig = import ../user-config.nix;

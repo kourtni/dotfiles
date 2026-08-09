@@ -6,7 +6,7 @@ in
 {
   imports = [
     # Note: sops-nix is imported at the system level in flake.nix
-    (import ./programs.nix { inherit config pkgs lib antigravity-nix; })
+    (import ./programs.nix { inherit config pkgs lib; })
     (import ./platforms.nix { inherit config pkgs lib antigravity-nix; })
     ./hosts/default.nix
     ./mcp-servers.nix
