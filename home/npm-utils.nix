@@ -13,7 +13,7 @@
     mkdir -p "$HOME/.npm-global"
     
     # Add Node.js (includes npm), and system tools to PATH for this activation script
-    export PATH="${pkgs.nodejs_20}/bin:${pkgs.gnutar}/bin:${pkgs.gzip}/bin:$PATH"
+    export PATH="${pkgs.nodejs_24}/bin:${pkgs.gnutar}/bin:${pkgs.gzip}/bin:$PATH"
     
     echo "✅ node found: $(which node 2>/dev/null || echo 'node')"
     echo "✅ npm found: $(which npm 2>/dev/null || echo 'npm')"
