@@ -127,6 +127,10 @@ This repository can also be used to manage Model Context Protocol (MCP) server c
 4. **nixos**: NixOS configuration and package management assistance
 5. **testing-sensei**: Enforces and guides unit testing principles in code generation
 
+**GitHub MCP servers** are not installed by this repository. A GitHub MCP server is declared in the MCP client's own configuration, and each client keeps that configuration somewhere different. The clients installed here (Claude Code, Codex, Antigravity, opencode) all read their own files, so there is no single place this repository could put it.
+
+What this repository does supply is the credential. A server that authenticates with a bearer header resolves `GITHUB_PERSONAL_ACCESS_TOKEN` from its own process environment, and any client launched from a shell inherits the export described in Secrets Management, whichever client it is.
+
 ### Managing MCP Servers
 
 #### On Linux/WSL:
@@ -188,6 +192,7 @@ For NixOS systems, this repository expects a `hardware-configuration.nix` file t
 - **Prompt**: Starship with custom Gruvbox theme
 - **Editor**: Neovim (set as `$EDITOR`)
 - **Aliases**: `ll`, `gs` (git status), `hm-rebuild` (auto-detects system architecture)
+- **GitHub token**: `GITHUB_PERSONAL_ACCESS_TOKEN`, exported from the `github/mcp_token` secret when it is present and readable (see Secrets Management)
 
 ### Development Tools
 
@@ -243,7 +248,23 @@ github:
   name: "Your Name"
   email: "your.email@example.com"
   token: "ghp_your_github_token"
+  mcp_token: "ghp_your_github_mcp_token"
 ```
+
+### GitHub Tokens
+
+The two GitHub tokens are separate secrets with different consumers. Neither is a substitute for the other.
+
+| Secret | Consumed by | Notes |
+|--------|-------------|-------|
+| `github/token` | An activation script writes it to `~/.git-credentials` | Only reached when no other helper claims `github.com` first. If `gh auth setup-git` has run, gh's URL-scoped helper in `~/.gitconfig` takes precedence and this value goes unused. |
+| `github/mcp_token` | Exported as `GITHUB_PERSONAL_ACCESS_TOKEN` in every interactive fish shell | Read by tools following that naming convention: MCP servers that authenticate to GitHub with a bearer header, and the shadcn wrapper, which uses it to lift API rate limits. |
+
+Notes on the exported variable:
+
+- It is set only when the secret exists, is readable, and is non-empty. If any of those fails the variable stays unset, which surfaces as a `401` rather than the `400` an empty bearer token produces.
+- `gh` does not read it. The CLI honors `GH_TOKEN` and `GITHUB_TOKEN`, so exporting this cannot disturb gh's stored credential or git operations that authenticate through gh's helper.
+- Suggested scopes for `mcp_token`: `repo` and `read:org` cover repository, issue, pull request, and Actions **read** access. Add `workflow` only if a tool needs to modify workflow files, remembering that anything running as you can read the variable. Organizations using SAML SSO require the token to be authorized for the organization separately from creating it.
 
 ## 🏠 Host-Specific Customization
 
