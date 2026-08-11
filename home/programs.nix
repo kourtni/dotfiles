@@ -100,6 +100,27 @@ in
         set -gx IS_WSL "$is_wsl"
         set -gx IS_NIXOS "$is_nixos"
       end
+
+      # GitHub PAT for Claude Code's user-level `github` MCP server, which
+      # expands this variable into its Authorization header and resolves it
+      # from its own process environment. The shadcn wrapper in
+      # mcp-servers.nix exports the same secret, but only for itself: an
+      # export inside a script reaches that process and its children, never
+      # the surrounding shell. Setting it session-wide is what lets anything
+      # launched from a shell, Claude Code included, see it.
+      #
+      # Interpolate the secret's path and read it at runtime. Baking the
+      # value in (home.sessionVariables) would place the token in the
+      # world-readable Nix store.
+      if test -r ${config.sops.secrets.github_mcp_token.path}
+        set -l github_mcp_token (cat ${config.sops.secrets.github_mcp_token.path})
+        # Only export a non-empty value. An empty bearer token is worse than
+        # an absent one: GitHub rejects it with 400 "Authorization header is
+        # badly formatted" rather than a 401 that reads as an auth problem.
+        if test -n "$github_mcp_token"
+          set -gx GITHUB_PERSONAL_ACCESS_TOKEN $github_mcp_token
+        end
+      end
     '' + lib.optionalString (vscodePath != null) ''
 
       # Add VS Code CLI to PATH (Platform-specific)
