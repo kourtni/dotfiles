@@ -108,7 +108,8 @@ dotfiles/
 │   └── starship-settings-from-toml.nix  # Starship prompt config
 ├── nixos/
 │   ├── configuration.nix        # NixOS system configuration
-│   └── hardware-configuration.nix
+│   ├── hardware-configuration.nix
+│   └── wslconfig                # Reference .wslconfig for the Windows host (WSL only)
 └── README.md
 ```
 
@@ -183,6 +184,23 @@ For NixOS systems, this repository expects a `hardware-configuration.nix` file t
     nixos/hardware-configuration.nix
     ```
     This step is crucial for maintaining the portability of your dotfiles.
+
+## WSL Host Configuration
+
+On WSL, some settings live on the **Windows** side in `%USERPROFILE%\.wslconfig` and
+cannot be managed by Nix. `nixos/wslconfig` is a documented reference copy; it enables
+`autoMemoryReclaim` so a long-running VM doesn't fragment its memory until new
+terminals fail with `Wsl/Service/0x8007274c`, and caps VM RAM.
+
+1.  **Copy it to your Windows user profile** (from inside WSL):
+    ```bash
+    cp nixos/wslconfig "$(wslpath "$(powershell.exe -NoProfile -Command '$env:USERPROFILE' | tr -d '\r')")/.wslconfig"
+    ```
+2.  **Adjust `memory=`** to roughly half your host's RAM.
+3.  **Restart the VM** from PowerShell so it takes effect:
+    ```powershell
+    wsl --shutdown
+    ```
 
 ## 🔧 Configuration Details
 
