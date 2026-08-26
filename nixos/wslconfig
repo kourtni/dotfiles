@@ -7,6 +7,14 @@
 
 [wsl2]
 
+# Cap VM RAM. Roughly 50% of host RAM matches the WSL default; adjust to your
+# machine.
+memory=16GB
+
+# autoMemoryReclaim is still an experimental key (WSL 2.6 rejects it under
+# [wsl2] with "Unknown key"), so it must live in this section.
+[experimental]
+
 # Gradually return unused page cache to Windows. Without this, a long-running
 # VM under heavy I/O fragments its memory until the kernel can no longer
 # allocate the contiguous 512 KB ring buffer each new hv_sock channel needs.
@@ -15,7 +23,3 @@
 # "page allocation failure: order:7 ... hvs_probe". Only `wsl --shutdown`
 # recovers from that state; this setting prevents it from building up.
 autoMemoryReclaim=gradual
-
-# Cap VM RAM. Roughly 50% of host RAM matches the WSL default; adjust to your
-# machine.
-memory=16GB
