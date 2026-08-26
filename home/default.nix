@@ -29,6 +29,9 @@ in
       github_mcp_token = {
         key = "github/mcp_token";
       };
+      mistral_api_key = {
+        key = "mistral/api_key";
+      };
     };
   };
 

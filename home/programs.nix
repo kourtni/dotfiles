@@ -121,6 +121,22 @@ in
           set -gx GITHUB_PERSONAL_ACCESS_TOKEN $github_mcp_token
         end
       end
+
+      # Mistral API key for the DeepSeek Harness (dsh). Its settings.yaml
+      # names apiKeyEnv: MISTRAL_API_KEY; resolution prefers the process
+      # environment over the key store, so once this is set the web UI's
+      # Models page shows the credential as read-only env — that is expected.
+      # Same read-at-runtime pattern as the GitHub token above: interpolating
+      # only the sops *path* keeps the value out of the Nix store.
+      if test -r ${config.sops.secrets.mistral_api_key.path}
+        set -l mistral_api_key (cat ${config.sops.secrets.mistral_api_key.path})
+        # Skip empty values: the placeholder in secrets.enc.yaml stays empty
+        # until a real key is added, and an empty env var would shadow a key
+        # stored through the web UI in ~/.dsh/.credentials.yaml.
+        if test -n "$mistral_api_key"
+          set -gx MISTRAL_API_KEY $mistral_api_key
+        end
+      end
     '' + lib.optionalString (vscodePath != null) ''
 
       # Add VS Code CLI to PATH (Platform-specific)
@@ -131,6 +147,13 @@ in
     '';
 
     functions = {
+      # DeepSeek Harness launcher. Two reasons for the wrapper:
+      #  - HMR needs Node's internal ESM loader; dsh's native fallback
+      #    (node-addon-require-builtin) does not recognize the nixpkgs Node
+      #    build, so the --expose-internals flag is required here.
+      #  - A fish function wins over PATH lookup, so this shadows the plain
+      #    ~/.npm-global/bin/dsh shim without touching npm's install.
+      dsh = "node --expose-internals $HOME/.npm-global/bin/dsh $argv";
       ll = "ls -l";
       gs = "git status";
       # Portable Nix upgrade command
@@ -267,5 +290,76 @@ in
       displayName = "OpenAI Codex CLI";
     }
   );
+
+  # REPRODUCIBLE: Auto-install DeepSeek Harness (dsh) via Home Manager activation.
+  # Two install-time quirks, discovered empirically:
+  #  - npm needs a larger heap than its ~2 GB default to resolve dsh's
+  #    dependency graph (plain `npx @deepseek-ai/dsh` OOMs after minutes of GC);
+  #  - several dependencies carry install scripts (native builds for node-pty
+  #    and koffi, dsh's own spawn helper) that npm's allow-scripts policy
+  #    blocks unless named explicitly.
+  home.activation.deepseekHarness = config.lib.dag.entryAfter ["writeBoundary"] (
+    npmUtils.mkNpmPackageActivation {
+      packageName = "@deepseek-ai/dsh";
+      binaryName = "dsh";
+      displayName = "DeepSeek Harness";
+      extraEnv = ''export NODE_OPTIONS="--max-old-space-size=8192"'';
+      npmFlags = "--allow-scripts=@deepseek-ai/dsh-subprocess-local,koffi,node-pty,@google/genai,protobufjs";
+    }
+  );
+
+  # Seed the harness's user config ($DSH_HOME, default ~/.dsh). dsh writes to
+  # settings.yaml and the patch layers itself (the Models page stores keys,
+  # the console edits entries), so nothing here may be a read-only symlink and
+  # user-editable files are seeded only when absent.
+  home.activation.deepseekHarnessConfig = config.lib.dag.entryAfter ["deepseekHarness"] ''
+    DSH_HOME="$HOME/.dsh"
+    mkdir -p "$DSH_HOME"
+
+    # Mock keyless adapter (owned by dotfiles; safe to overwrite). Lets the
+    # full agent loop run with zero API keys: shows up in the model picker as
+    # "Mock (keyless) / Mock Echo".
+    cp -f ${./dsh/mock-llm.mjs} "$DSH_HOME/mock-llm.mjs"
+
+    # The mock imports @deepseek-ai/dsh-llm; resolve it from the dsh install.
+    mkdir -p "$DSH_HOME/node_modules/@deepseek-ai"
+    ln -sfn "$HOME/.npm-global/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-llm" \
+      "$DSH_HOME/node_modules/@deepseek-ai/dsh-llm"
+
+    # Home-level patch layer: composes after every profile's own layer, so one
+    # file covers web and headless alike. Seed-if-absent: entries here may be
+    # adjusted by hand later.
+    if [ ! -f "$DSH_HOME/cordis.patch.yml" ]; then
+      cat > "$DSH_HOME/cordis.patch.yml" <<EOF
+    # Home-level dsh patch layer (managed seed from dotfiles; edits are yours).
+    - insert:
+        - id: mock-llm
+          name: '$DSH_HOME/mock-llm.mjs'
+    - id: agent-default-model
+      config:
+        provider: mistral
+        model: devstral-medium-latest
+    EOF
+      echo "✅ Seeded $DSH_HOME/cordis.patch.yml"
+    fi
+
+    # Mistral provider route (catalog provider: endpoint/protocol/models come
+    # from the built-in pi-ai catalog; only the credential reference is ours).
+    # Append-if-absent: dsh owns this document and writes other sections.
+    if ! grep -q "^llm-pi-ai:" "$DSH_HOME/settings.yaml" 2>/dev/null; then
+      cat >> "$DSH_HOME/settings.yaml" <<EOF
+
+    # Mistral route. The key is a reference; the secret resolves from
+    # \$MISTRAL_API_KEY (sops, exported in fish), ~/.dsh/.credentials.yaml
+    # (written by the web UI's Models page), or ~/.dsh/.env.
+    llm-pi-ai:
+      providers:
+        mistral:
+          apiKeyEnv: MISTRAL_API_KEY
+          displayName: Mistral
+    EOF
+      echo "✅ Seeded llm-pi-ai settings section"
+    fi
+  '';
 
 }

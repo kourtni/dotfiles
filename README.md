@@ -214,11 +214,45 @@ terminals fail with `Wsl/Service/0x8007274c`, and caps VM RAM.
 
 ### Development Tools
 
-- **Node.js**: Version 22 with npm
+- **Node.js**: Version 24 with npm
 - **Git**: Configured with secrets management
 - **Claude Code**: Auto-installed CLI tool
+- **DeepSeek Harness**: Auto-installed `dsh` CLI (see below)
 - **VS Code**: Platform-aware PATH integration
 - **Fonts**: Multiple Nerd Fonts for terminal icons (auto-installed on Linux, manual install required on macOS)
+
+### DeepSeek Harness (`dsh`)
+
+The [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agent
+harness is auto-installed into `~/.npm-global` like Claude Code, with two
+quirks handled by the activation script: npm needs an enlarged heap to resolve
+the dependency graph, and the native install scripts (`node-pty`, `koffi`,
+dsh's spawn helper) are explicitly allow-listed.
+
+Launch it through the `dsh` fish function, not the bare npm shim — the
+function adds `node --expose-internals`, which HMR requires because dsh's
+native internals-probe does not recognize the nixpkgs Node build:
+
+```sh
+dsh web                  # web UI on http://127.0.0.1:3080
+dsh --profile headless "run the tests"
+```
+
+Activation also seeds `~/.dsh` (seed-if-absent; dsh writes these files too):
+
+- `cordis.patch.yml` — home-level patch layer applying to every profile:
+  mounts the keyless mock adapter and defaults the agent to Mistral
+  `devstral-medium-latest`
+- `settings.yaml` — the `llm-pi-ai` Mistral route referencing
+  `MISTRAL_API_KEY`
+- `mock-llm.mjs` — a scripted offline model ("Mock (keyless)" in the model
+  picker) that exercises the full agent loop with zero API keys
+
+The Mistral key resolves from `$MISTRAL_API_KEY` (sops secret
+`mistral/api_key`, exported by fish when non-empty) or from
+`~/.dsh/.credentials.yaml` written by the web UI's Models page. The committed
+placeholder is empty; add a real key with
+`sops home/secrets/secrets.enc.yaml`.
 
 ### Platform-Specific Features
 
