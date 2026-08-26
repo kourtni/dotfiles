@@ -3,7 +3,7 @@
 
 {
   # Reusable function to generate npm package installation/update script
-  mkNpmPackageActivation = { packageName, binaryName, displayName }: ''
+  mkNpmPackageActivation = { packageName, binaryName, displayName, npmFlags ? "", extraEnv ? "" }: ''
     set -e  # Exit on any error
     
     echo "🔧 Setting up ${displayName}..."
@@ -14,6 +14,7 @@
     
     # Add Node.js (includes npm), and system tools to PATH for this activation script
     export PATH="${pkgs.nodejs_24}/bin:${pkgs.gnutar}/bin:${pkgs.gzip}/bin:$PATH"
+    ${extraEnv}
     
     echo "✅ node found: $(which node 2>/dev/null || echo 'node')"
     echo "✅ npm found: $(which npm 2>/dev/null || echo 'npm')"
@@ -22,7 +23,7 @@
     # Install or update the package
     if [ ! -f "$HOME/.npm-global/bin/${binaryName}" ]; then
       echo "📦 Installing ${displayName}..."
-      npm install -g ${packageName} || {
+      npm install -g ${npmFlags} ${packageName} || {
         echo "❌ Failed to install ${displayName}"
         exit 1
       }
@@ -45,7 +46,7 @@
         
         # Clean reinstall to avoid ENOTEMPTY errors
         npm uninstall -g ${packageName} 2>/dev/null || true
-        npm install -g ${packageName} || {
+        npm install -g ${npmFlags} ${packageName} || {
           echo "⚠️  Failed to update ${displayName}, but continuing..."
         }
       else
