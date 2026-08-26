@@ -47,7 +47,16 @@
         # Clean reinstall to avoid ENOTEMPTY errors
         npm uninstall -g ${packageName} 2>/dev/null || true
         npm install -g ${npmFlags} ${packageName} || {
-          echo "⚠️  Failed to update ${displayName}, but continuing..."
+          # The uninstall already ran, so a failed install here would leave
+          # the CLI missing entirely (and later activations that assume the
+          # install exists would misbehave). Roll back to the version that
+          # was installed before giving up.
+          echo "⚠️  Failed to update ${displayName}; rolling back to $CURRENT_VERSION..."
+          npm install -g ${npmFlags} "${packageName}@$CURRENT_VERSION" || {
+            echo "❌ Rollback failed; ${displayName} is no longer installed."
+            exit 1
+          }
+          echo "✅ Rolled back ${displayName} to $CURRENT_VERSION"
         }
       else
         echo "✅ ${displayName} is up to date (version $CURRENT_VERSION)"
