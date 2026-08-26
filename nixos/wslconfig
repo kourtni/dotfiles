@@ -11,8 +11,10 @@
 # machine.
 memory=16GB
 
-# autoMemoryReclaim is still an experimental key (WSL 2.6 rejects it under
-# [wsl2] with "Unknown key"), so it must live in this section.
+# autoMemoryReclaim has lived under [experimental] since it was added in WSL
+# 1.3.10 (2023) and was never promoted to [wsl2], unlike dnsTunneling,
+# firewall, networkingMode and autoProxy (promoted in 2.0.5). Placing it under
+# [wsl2] fails with "Unknown key" and the setting is silently not applied.
 [experimental]
 
 # Gradually return unused page cache to Windows. Without this, a long-running
