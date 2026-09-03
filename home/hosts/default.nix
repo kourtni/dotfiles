@@ -7,7 +7,7 @@ let
   '';
   hostname = builtins.readFile hostnameFile;
   isCxGawd = lib.strings.hasPrefix "CxGawd" hostname;
-  isDarwin = pkgs.stdenv.isDarwin;
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
 in
 {
   # Host-specific packages

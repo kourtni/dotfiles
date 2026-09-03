@@ -5,8 +5,8 @@ let
   npmUtils = import ./npm-utils.nix { inherit pkgs; };
   
   # Platform detection
-  isLinux = pkgs.stdenv.isLinux;
-  isDarwin = pkgs.stdenv.isDarwin;
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
   isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
   
   # Platform-specific VS Code paths
@@ -266,7 +266,7 @@ in
     } else import ./starship-settings-from-toml.nix;
   };
 
-  fonts.fontconfig.enable = pkgs.stdenv.isLinux;
+  fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux;
 
   # Add npm global bin to PATH
   home.sessionPath = [

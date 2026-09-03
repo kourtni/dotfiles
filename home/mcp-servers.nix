@@ -2,8 +2,8 @@
 
 let
   # Platform detection
-  isLinux = pkgs.stdenv.isLinux;
-  isDarwin = pkgs.stdenv.isDarwin;
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
   
   # Import shared npm utilities
   npmUtils = import ./npm-utils.nix { inherit pkgs; };

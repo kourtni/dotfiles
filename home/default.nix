@@ -39,14 +39,17 @@ in
   home.homeDirectory = userConfig.homeDirectory;
   home.stateVersion = userConfig.stateVersion;
 
-  nixpkgs.config.allowUnfree = true;
+  # allowUnfree is set by whoever constructs pkgs: nixos/configuration.nix,
+  # darwin/configuration.nix, or the standalone homeConfigurations in
+  # flake.nix. Setting nixpkgs.config here is ignored (and warned about)
+  # under home-manager.useGlobalPkgs.
 
   programs.home-manager.enable = true;
 
   # Platform-specific configurations are handled in platforms.nix
 
   # Ensure sops-nix service waits for home directory to be ready (Linux only)
-  systemd.user.services = lib.optionalAttrs pkgs.stdenv.isLinux {
+  systemd.user.services = lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
     sops-nix = {
       Unit = {
         After = [ "graphical-session.target" ];

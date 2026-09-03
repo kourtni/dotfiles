@@ -29,6 +29,9 @@ in
 
   # Nix configuration
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  # Home Manager uses the system pkgs (useGlobalPkgs), so unfree must be
+  # allowed here rather than in home/default.nix.
+  nixpkgs.config.allowUnfree = true;
 
   # Automatic store maintenance. Without this the store only grows: every
   # rebuild leaves the previous generation's closure behind, and nothing

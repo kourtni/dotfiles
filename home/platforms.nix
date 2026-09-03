@@ -2,8 +2,8 @@
 
 let
   # Base platform detection
-  isLinux = pkgs.stdenv.isLinux;
-  isDarwin = pkgs.stdenv.isDarwin;
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
   
   # WSL detection (independent of OS distribution)
   wslInteropExists = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
@@ -69,7 +69,7 @@ in
   home.packages = with pkgs; (
     # Common packages for all platforms
     [
-      antigravity-nix.packages.${pkgs.system}.google-antigravity-cli
+      antigravity-nix.packages.${pkgs.stdenv.hostPlatform.system}.google-antigravity-cli
       age        # Required for sops-nix secret decryption
       bun        # Fast JavaScript runtime, bundler, and package manager
       curl
