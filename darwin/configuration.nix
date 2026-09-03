@@ -24,6 +24,19 @@ in
     fallback = true;
   };
 
+  # Automatic store maintenance (launchd). Daily, matching the NixOS module
+  # defaults: 03:15 collect garbage and drop generations older than 14 days,
+  # 03:45 dedupe the store. (nix-darwin's own default is weekly.)
+  nix.gc = {
+    automatic = true;
+    interval = { Hour = 3; Minute = 15; };
+    options = "--delete-older-than 14d";
+  };
+  nix.optimise = {
+    automatic = true;
+    interval = { Hour = 3; Minute = 45; };
+  };
+
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 

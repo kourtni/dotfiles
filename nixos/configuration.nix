@@ -29,7 +29,25 @@ in
 
   # Nix configuration
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
-  
+
+  # Automatic store maintenance. Without this the store only grows: every
+  # rebuild leaves the previous generation's closure behind, and nothing
+  # ever deletes it. Runs on the module defaults: GC daily at 03:15, optimise
+  # daily at 03:45.
+  nix.gc = {
+    automatic = true;
+    # Also drop system/home-manager generations older than this so they stop
+    # pinning old closures. Anything newer stays available for rollback.
+    options = "--delete-older-than 14d";
+    # WSL is rarely running at a fixed wall-clock time. Persistent timers
+    # record the last run and fire at the next boot if a run was missed, so
+    # the schedule actually happens instead of being skipped forever.
+    persistent = true;
+  };
+  # Hard-link identical files across store paths. Preferred over
+  # nix.settings.auto-optimise-store, which optimises during every build.
+  nix.optimise.automatic = true;
+
   networking.hostName = "wsl"; # <- must match the flake output key
 
   users.users.${userConfig.username} = {
