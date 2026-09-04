@@ -12,3 +12,6 @@ nixos/hardware-configuration.nix
 
 # Local MCP configurations
 .mcp.json
+
+# Local-only planning docs written by the superpowers plugin (plans, specs)
+docs/superpowers/
