@@ -24,4 +24,5 @@ memory=16GB
 # existing sessions keep working, and `journalctl -k` shows
 # "page allocation failure: order:7 ... hvs_probe". Only `wsl --shutdown`
 # recovers from that state; this setting prevents it from building up.
+# The in-VM half of the fix (vm.min_free_kbytes) lives in configuration.nix.
 autoMemoryReclaim=gradual

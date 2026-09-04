@@ -51,6 +51,17 @@ in
   # nix.settings.auto-optimise-store, which optimises during every build.
   nix.optimise.automatic = true;
 
+  # Keep a floor of free memory so the kernel can still satisfy high-order
+  # allocations under heavy I/O. Each new hv_sock channel (every new WSL
+  # terminal) needs a contiguous 512 KB ring buffer; once the VM has
+  # fragmented under a big build the allocation fails ("page allocation
+  # failure: order:7 ... hvs_probe" in `journalctl -k`) and new terminals
+  # error with Wsl/Service/0x8007274c until `wsl --shutdown`. The default
+  # floor is a few tens of MB; 256 MB keeps enough contiguous memory in
+  # reserve. Complements autoMemoryReclaim in nixos/wslconfig, which slows
+  # the fragmentation but can be outrun by a concurrent I/O burst.
+  boot.kernel.sysctl."vm.min_free_kbytes" = 262144;
+
   networking.hostName = "wsl"; # <- must match the flake output key
 
   users.users.${userConfig.username} = {
