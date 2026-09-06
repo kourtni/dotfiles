@@ -46,6 +46,18 @@ in
 
   programs.home-manager.enable = true;
 
+  # Automatic Nix store garbage collection for standalone Linux machines
+  # (e.g. the Arch builder), which the system-level nix.gc in
+  # nixos/configuration.nix and darwin/configuration.nix doesn't reach.
+  # On multi-user installs the collection itself runs through nix-daemon,
+  # so this reclaims the whole store, not just this user's profiles.
+  # Daily at a 14-day retention, matching the system-level regime.
+  nix.gc = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
+    automatic = true;
+    frequency = "daily";
+    options = "--delete-older-than 14d";
+  };
+
   # Platform-specific configurations are handled in platforms.nix
 
   # Ensure sops-nix service waits for home directory to be ready (Linux only)
