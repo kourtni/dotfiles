@@ -54,7 +54,7 @@ in
   # Daily at a 14-day retention, matching the system-level regime.
   nix.gc = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     automatic = true;
-    frequency = "daily";
+    dates = "daily";
     options = "--delete-older-than 14d";
   };
 
