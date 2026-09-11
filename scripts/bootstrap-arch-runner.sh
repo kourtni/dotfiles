@@ -13,7 +13,7 @@ set -euo pipefail
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCH_DIR="$DOTFILES/arch"
 RUNNER_REPO="${RUNNER_REPO:-Chan-Ko-LLC/ck}"
-RUNNER_NAME="${RUNNER_NAME:-$(hostname)}"
+RUNNER_NAME="${RUNNER_NAME:-$(hostnamectl --static)}"
 RUNNER_LABELS="${RUNNER_LABELS:-}"
 RUNNER_DIR="$HOME/actions-runner"
 
@@ -47,11 +47,17 @@ paru -S --needed --noconfirm - < "$ARCH_DIR/pkglist-aur.txt"
 log "Installing zram swap config"
 sudo install -Dm644 "$ARCH_DIR/zram-generator.conf" /etc/systemd/zram-generator.conf
 sudo systemctl daemon-reload
-sudo systemctl start /dev/zram0 2>/dev/null || true
+sudo systemctl start /dev/zram0
+if ! swapon --show=NAME --noheadings | grep -q '^/dev/zram0$'; then
+    warn "zram0 is not active as swap; check 'systemctl status systemd-zram-setup@zram0.service'."
+fi
 
 log "Configuring the Nix daemon"
-if ! grep -q '^experimental-features.*flakes' /etc/nix/nix.conf 2>/dev/null; then
+features="$(grep -E '^experimental-features' /etc/nix/nix.conf 2>/dev/null || true)"
+if [ -z "$features" ]; then
     echo 'experimental-features = nix-command flakes' | sudo tee -a /etc/nix/nix.conf >/dev/null
+elif ! { grep -qw nix-command <<<"$features" && grep -qw flakes <<<"$features"; }; then
+    sudo sed -i -E 's/^(experimental-features *=.*)$/\1 nix-command flakes/' /etc/nix/nix.conf
 fi
 if ! id -nG "$USER" | grep -qw nix-users; then
     sudo usermod -aG nix-users "$USER"
@@ -63,10 +69,14 @@ log "Enabling system services"
 sudo systemctl enable --now NetworkManager.service sshd.service nix-daemon.service
 sudo systemctl enable sddm.service
 
+# The runner is only registered once the host is fully configured, so a
+# half-built box never starts picking up jobs.
+HOST_READY=
 if [ -z "${NEED_RELOGIN:-}" ]; then
     if [ -f "$DOTFILES/user-config.nix" ]; then
         log "Applying Home Manager configuration"
         (cd "$DOTFILES" && nix run .#home-manager -- switch --flake ".#$USER@x86_64-linux")
+        HOST_READY=1
     else
         warn "$DOTFILES/user-config.nix is missing. Copy it (and ~/.config/sops/age/keys.txt) from the existing box, then re-run this script."
     fi
@@ -83,6 +93,8 @@ fi
 
 if [ -f "$RUNNER_DIR/.runner" ]; then
     log "Runner already registered as $(grep -o '"agentName": *"[^"]*"' "$RUNNER_DIR/.runner" | cut -d'"' -f4); skipping registration"
+elif [ -z "$HOST_READY" ]; then
+    warn "Host configuration is not complete yet; skipping runner registration until the next run."
 else
     token="${RUNNER_TOKEN:-}"
     if [ -z "$token" ] && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
@@ -95,7 +107,6 @@ else
             --token "$token" \
             --name "$RUNNER_NAME" \
             ${RUNNER_LABELS:+--labels "$RUNNER_LABELS"})
-        (cd "$RUNNER_DIR" && sudo ./svc.sh install "$USER" && sudo ./svc.sh start)
     else
         warn "No registration token. Get one from https://github.com/$RUNNER_REPO/settings/actions/runners/new, then run:"
         cat <<MSG
@@ -103,6 +114,18 @@ else
   ./config.sh --url https://github.com/$RUNNER_REPO --token <TOKEN> --name $RUNNER_NAME${RUNNER_LABELS:+ --labels $RUNNER_LABELS}
   sudo ./svc.sh install $USER && sudo ./svc.sh start
 MSG
+    fi
+fi
+
+# Ensure the service exists and is running whenever the runner is registered,
+# including when registration was done by hand or a previous run stopped early.
+if [ -f "$RUNNER_DIR/.runner" ]; then
+    log "Ensuring the runner service is installed and running"
+    if [ ! -f "$RUNNER_DIR/.service" ]; then
+        (cd "$RUNNER_DIR" && sudo ./svc.sh install "$USER")
+    fi
+    if ! systemctl is-active --quiet "$(cat "$RUNNER_DIR/.service")"; then
+        (cd "$RUNNER_DIR" && sudo ./svc.sh start)
     fi
 fi
 
