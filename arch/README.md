@@ -30,6 +30,31 @@ second (or third) identical box can be stood up from a fresh Arch install.
    authenticated or `RUNNER_TOKEN` is exported; otherwise it prints the exact
    `config.sh` command to run.
 
+## Networking
+
+The wired connection is plain DHCP with no static address, DNS, or firewall
+rules, so a new box needs nothing beyond NetworkManager being enabled (the
+script does that). Two things are not carried over:
+
+- **Wi-Fi profiles.** Saved networks and their passwords live in root-only
+  files that are deliberately kept out of git. To copy them from the existing
+  box (run on the *new* box, as your user):
+
+  ```bash
+  sudo scp -p 'root@builder-linux1:/etc/NetworkManager/system-connections/*.nmconnection' \
+      /etc/NetworkManager/system-connections/
+  sudo chmod 600 /etc/NetworkManager/system-connections/*.nmconnection
+  sudo nmcli connection reload
+  ```
+
+  If root SSH is not enabled on the existing box, `sudo cat` the files there
+  and paste them into place instead, or simply join the Wi-Fi once from the
+  new box with `nmcli device wifi connect <SSID> --ask`.
+
+- **Router-side settings.** If the existing box has a DHCP reservation or a
+  DNS name on the `ck-runners.lan` network, add a matching entry for the new
+  box on the router. Nothing on the host controls this.
+
 ## Refreshing the package lists
 
 Run this on the reference box after installing or removing packages:
