@@ -110,6 +110,13 @@ dotfiles/
 │   ├── configuration.nix        # NixOS system configuration
 │   ├── hardware-configuration.nix
 │   └── wslconfig                # Reference .wslconfig for the Windows host (WSL only)
+├── arch/                        # Arch Linux host layer for the GitHub Actions runner boxes
+│   ├── pkglist-native.txt       # Explicit pacman packages
+│   ├── pkglist-aur.txt          # Explicit AUR packages
+│   └── zram-generator.conf      # zram swap config
+├── scripts/
+│   ├── bootstrap-arch-runner.sh # Turn a fresh Arch install into a runner box
+│   └── setup-mcp.sh             # Add MCP servers to a project
 └── README.md
 ```
 
@@ -201,6 +208,13 @@ terminals fail with `Wsl/Service/0x8007274c`, and caps VM RAM.
     ```powershell
     wsl --shutdown
     ```
+
+## Arch Linux Runner Hosts
+
+The `builder-linux*` GitHub Actions runners are plain Arch Linux boxes with
+standalone Home Manager on top. The Arch layer (package lists, zram config)
+lives in `arch/`, and `scripts/bootstrap-arch-runner.sh` turns a fresh Arch
+install into a fully configured runner. See `arch/README.md` for the steps.
 
 ## 🔧 Configuration Details
 
