@@ -16,9 +16,11 @@ second (or third) identical box can be stood up from a fresh Arch install.
 1. Install Arch with `archinstall` (or by hand): same partition layout as the
    existing box (EFI, ext4 `/boot`, LVM with `lv_root` and `lv_home`), create
    the `kourtni` user in the `wheel` group, and get networking up.
-2. Log in as that user and run:
+2. Log in as that user and run (`git` is not part of a minimal Arch install,
+   so install it first):
 
    ```bash
+   sudo pacman -Syu --needed git
    git clone https://github.com/kourtni/dotfiles.git ~/dotfiles
    ~/dotfiles/scripts/bootstrap-arch-runner.sh
    ```
