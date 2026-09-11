@@ -13,9 +13,9 @@ second (or third) identical box can be stood up from a fresh Arch install.
 
 ## Standing up a new runner box
 
-1. Install Arch with `archinstall` (or by hand): same partition layout as the
-   existing box (EFI, ext4 `/boot`, LVM with `lv_root` and `lv_home`), create
-   the `kourtni` user in the `wheel` group, and get networking up.
+1. Install Arch by following [INSTALL.md](INSTALL.md). It walks through the
+   partitioning (EFI plus LVM with `lv_root` and `lv_home`), the base
+   packages, the `kourtni` user in the `wheel` group, and networking.
 2. Log in as that user and run (`git` is not part of a minimal Arch install,
    so install it first):
 
