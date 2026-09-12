@@ -78,11 +78,8 @@ if [ -z "$features" ]; then
 elif ! { grep -qw nix-command <<<"$features" && grep -qw flakes <<<"$features"; }; then
     sudo sed -i -E 's/^(experimental-features *=.*)$/\1 nix-command flakes/' /etc/nix/nix.conf
 fi
-if ! id -nG "$USER" | grep -qw nix-users; then
-    sudo usermod -aG nix-users "$USER"
-    warn "Added $USER to nix-users; log out and back in before running Home Manager."
-    NEED_RELOGIN=1
-fi
+# Arch's nix package has no nix-users group; the daemon socket is world-writable,
+# so any user can talk to it once nix-daemon is running.
 
 log "Enabling system services"
 sudo systemctl enable --now NetworkManager.service sshd.service nix-daemon.service
@@ -91,14 +88,12 @@ sudo systemctl enable sddm.service
 # The runner is only registered once the host is fully configured, so a
 # half-built box never starts picking up jobs.
 HOST_READY=
-if [ -z "${NEED_RELOGIN:-}" ]; then
-    if [ -f "$DOTFILES/user-config.nix" ]; then
-        log "Applying Home Manager configuration"
-        (cd "$DOTFILES" && nix run .#home-manager -- switch --flake ".#$USER@x86_64-linux")
-        HOST_READY=1
-    else
-        warn "$DOTFILES/user-config.nix is missing. Copy it (and ~/.config/sops/age/keys.txt) from the existing box, then re-run this script."
-    fi
+if [ -f "$DOTFILES/user-config.nix" ]; then
+    log "Applying Home Manager configuration"
+    (cd "$DOTFILES" && nix run .#home-manager -- switch --flake ".#$USER@x86_64-linux")
+    HOST_READY=1
+else
+    warn "$DOTFILES/user-config.nix is missing. Copy it (and ~/.config/sops/age/keys.txt) from the existing box, then re-run this script."
 fi
 
 log "Installing the GitHub Actions runner"
@@ -149,5 +144,3 @@ if [ -f "$RUNNER_DIR/.runner" ]; then
 fi
 
 log "Done"
-[ -n "${NEED_RELOGIN:-}" ] && echo "Log out, log back in, and re-run this script to finish Home Manager setup."
-exit 0
