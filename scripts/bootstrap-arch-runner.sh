@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Environment overrides:
 #   RUNNER_NAME    runner name to register (default: hostname)
-#   RUNNER_LABELS  extra comma-separated labels (default: none beyond GitHub's)
+#   RUNNER_LABELS  extra comma-separated labels (default: nix-native, matching builder-linux1)
 #   RUNNER_REPO    owner/repo the runner is registered to (default: Chan-Ko-LLC/ck)
 #   RUNNER_TOKEN   registration token; fetched via `gh` if unset and gh is logged in
 
@@ -14,7 +14,7 @@ DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCH_DIR="$DOTFILES/arch"
 RUNNER_REPO="${RUNNER_REPO:-Chan-Ko-LLC/ck}"
 RUNNER_NAME="${RUNNER_NAME:-$(hostnamectl --static)}"
-RUNNER_LABELS="${RUNNER_LABELS:-}"
+RUNNER_LABELS="${RUNNER_LABELS:-nix-native}"
 RUNNER_DIR="$HOME/actions-runner"
 
 log()  { printf '\n==> %s\n' "$*"; }
@@ -151,6 +151,14 @@ fi
 # Ensure the service exists and is running whenever the runner is registered,
 # including when registration was done by hand or a previous run stopped early.
 if [ -f "$RUNNER_DIR/.runner" ]; then
+    # Keep job temp files out of the 5.8G /tmp tmpfs, whose per-user quota
+    # took builder-linux1 down with "Disk quota exceeded" (2026-09-06).
+    mkdir -p "$HOME/.runner-tmp"
+    if ! grep -q '^TMPDIR=' "$RUNNER_DIR/.env" 2>/dev/null; then
+        echo "TMPDIR=$HOME/.runner-tmp" >> "$RUNNER_DIR/.env"
+        [ -f "$RUNNER_DIR/.service" ] && sudo systemctl restart "$(cat "$RUNNER_DIR/.service")" 2>/dev/null || true
+    fi
+
     log "Ensuring the runner service is installed and running"
     if [ ! -f "$RUNNER_DIR/.service" ]; then
         (cd "$RUNNER_DIR" && sudo ./svc.sh install "$USER")

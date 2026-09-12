@@ -133,8 +133,16 @@ umount -R /mnt
 reboot
 ```
 
-Pull the USB stick when the screen goes blank. Log in as `kourtni` and check
-that you are online with `ping -c 2 archlinux.org`. If not:
+Pull the USB stick when the screen goes blank. Log in as `kourtni`. The
+prompt should read `kourtni@builder-linux2`; if it says `archlinux`, the
+hostname step in the chroot was missed, and the runner would register under
+the wrong name. Fix it before running the bootstrap script:
+
+```bash
+sudo hostnamectl set-hostname builder-linux2
+```
+
+Then check that you are online with `ping -c 2 archlinux.org`. If not:
 
 ```bash
 sudo systemctl enable --now NetworkManager
