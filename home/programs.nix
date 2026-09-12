@@ -268,10 +268,33 @@ in
 
   fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux;
 
-  # Add npm global bin to PATH
+  # Add npm global bin and ~/.local/bin (codex, user scripts) to PATH
   home.sessionPath = [
     "$HOME/.npm-global/bin"
+    "$HOME/.local/bin"
   ];
+
+  # Bash stays the login shell (no chsh needed for sddm/kitty on the Arch
+  # runner boxes); Home Manager's .bashrc wires up the Nix profile and PATH,
+  # then interactive shells hand off to fish. Previously this lived in a
+  # hand-edited ~/.bashrc on builder-linux1 only.
+  programs.bash = {
+    enable = true;
+    # Runs for non-interactive shells too (ssh remote commands, scripts), so
+    # they can find nix and the Home Manager profile.
+    bashrcExtra = ''
+      if [[ -f ~/.nix-profile/etc/profile.d/hm-session-vars.sh ]]; then
+        . ~/.nix-profile/etc/profile.d/hm-session-vars.sh
+      fi
+    '';
+    initExtra = ''
+      # Hand interactive shells to fish from the Nix profile, unless bash was
+      # started deliberately from inside fish.
+      if [[ -x ~/.nix-profile/bin/fish && "$(ps -o comm= -p $PPID 2>/dev/null)" != fish ]]; then
+        exec ~/.nix-profile/bin/fish
+      fi
+    '';
+  };
 
   # REPRODUCIBLE: Auto-install Claude Code via Home Manager activation
   home.activation.claudeCode = config.lib.dag.entryAfter ["writeBoundary"] (
