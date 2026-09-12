@@ -144,9 +144,8 @@ nmcli device wifi connect "<SSID>" --ask
 ```
 
 Then continue from step 2 of [README.md](README.md). The bootstrap script
-asks for your sudo password once at the start and keeps it alive, but the
-first run still ends by asking you to log out and back in, so plan to be
-around for that.
+asks for your sudo password once at the start and keeps it alive, so it runs
+unattended after that.
 
 ## If the first boot lands in emergency mode
 
