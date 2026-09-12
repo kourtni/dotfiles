@@ -85,6 +85,19 @@ log "Enabling system services"
 sudo systemctl enable --now NetworkManager.service sshd.service nix-daemon.service
 sudo systemctl enable sddm.service
 
+# Arch's nix package ships no /nix/store; the daemon creates it lazily, and a
+# client that races it fails with 'opening file "/nix/store": No such file'.
+if [ ! -d /nix/store ]; then
+    log "Initialising the Nix store"
+    sudo install -d -o root -g nixbld -m 1775 /nix/store
+    sudo install -d -m 755 /nix/var/nix/db /nix/var/nix/profiles /nix/var/nix/gcroots /nix/var/nix/temproots
+    sudo systemctl restart nix-daemon.service
+fi
+if ! nix store info >/dev/null 2>&1 && ! nix store ping >/dev/null 2>&1; then
+    warn "Cannot talk to the Nix daemon. Check 'systemctl status nix-daemon.service' and re-run this script."
+    exit 1
+fi
+
 # The runner is only registered once the host is fully configured, so a
 # half-built box never starts picking up jobs.
 HOST_READY=
