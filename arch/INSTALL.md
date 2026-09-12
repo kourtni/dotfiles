@@ -31,7 +31,19 @@ cat /sys/firmware/efi/fw_platform_size   # must print 64
 ping -c 2 archlinux.org
 timedatectl                              # confirm NTP is synchronised
 lsblk                                    # confirm /dev/sda is the SSD
+reflector --country US --protocol https --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
+pacman -Sy archlinux-keyring
 ```
+
+The last two lines matter. `pacstrap` copies the live ISO's mirrorlist into
+the new system, so a bad list here follows you onto the disk, and an ISO
+older than a few months carries stale signing keys. If `pacman -Sy` fails
+with a download error, check `date` (a wrong clock breaks TLS) and
+`ip -br addr` (no address means no network) before retrying.
+
+The ISO shell is zsh with extended globbing. Quote any grep pattern that
+starts with `^`, for example `grep '^HOOKS' file`, or zsh will try to expand
+it as a glob and report "no matches found".
 
 ## 2. Partition, LVM, filesystems
 
@@ -82,11 +94,26 @@ echo 'LANG=en_US.UTF-8' > /etc/locale.conf
 echo 'KEYMAP=us' > /etc/vconsole.conf
 echo "$HOSTNAME" > /etc/hostname
 
-# Same hook set as builder-linux1; lvm2 before filesystems is what matters.
-sed -i 's/^HOOKS=.*/HOOKS=(base systemd autodetect microcode modconf kms keyboard keymap sd-vconsole block lvm2 filesystems fsck)/' /etc/mkinitcpio.conf
-mkinitcpio -P
+ls /boot   # must list vmlinuz-linux and vmlinuz-linux-lts; if not, run: pacman -S linux linux-lts
+nano /etc/mkinitcpio.conf
+```
 
-passwd                                   # root password
+In nano, replace the whole `HOOKS=(...)` line with the one below, then save
+with Ctrl+O, Enter and exit with Ctrl+X. Same hook set as builder-linux1;
+`lvm2` before `filesystems` is what matters. Without it the initramfs cannot
+find the root volume and boot stops with "Timed out waiting for device
+/dev/mapper/volgroup0-lv_root".
+
+```
+HOOKS=(base systemd autodetect microcode modconf kms keyboard keymap sd-vconsole block lvm2 filesystems fsck)
+```
+
+```bash
+grep '^HOOKS' /etc/mkinitcpio.conf      # confirm the edit saved
+mkinitcpio -P
+lsinitcpio /boot/initramfs-linux.img | grep -c lvm   # must be greater than 0
+
+passwd                                   # root password; needed to log in to emergency mode
 useradd -m -G wheel kourtni
 passwd kourtni
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/wheel
@@ -106,8 +133,34 @@ umount -R /mnt
 reboot
 ```
 
-Pull the USB stick when the screen goes blank. Log in as `kourtni`, then
-continue from step 2 of [README.md](README.md).
+Pull the USB stick when the screen goes blank. Log in as `kourtni` and check
+that you are online with `ping -c 2 archlinux.org`. If not:
+
+```bash
+sudo systemctl enable --now NetworkManager
+nmcli device status
+nmcli device wifi list                   # only if you need Wi-Fi for now
+nmcli device wifi connect "<SSID>" --ask
+```
+
+Then continue from step 2 of [README.md](README.md). The bootstrap script
+asks for your sudo password once at the start and keeps it alive, but the
+first run still ends by asking you to log out and back in, so plan to be
+around for that.
+
+## If the first boot lands in emergency mode
+
+- **"Timed out waiting for device /dev/mapper/volgroup0-lv_root"**: the
+  initramfs has no LVM support. Boot the ISO, `vgchange -ay`, mount root at
+  `/mnt` and the EFI partition at `/mnt/boot`, `arch-chroot /mnt`, then redo
+  the mkinitcpio part of step 4.
+- **"Cannot open access to console, the root account is locked"**: this
+  appears alongside the real error; it just means the rescue shell has no
+  password to accept. Fix the real error above. If it happens after root is
+  mounted, the `passwd` step in the chroot was skipped.
+- **A mount unit fails**: `fstab` is stale. From the ISO, mount everything
+  under `/mnt` as in step 2 and run `genfstab -U /mnt > /mnt/etc/fstab`
+  (single `>` to overwrite).
 
 ## How this differs from builder-linux1
 

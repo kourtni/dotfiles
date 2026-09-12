@@ -29,6 +29,24 @@ if [ ! -f /etc/arch-release ]; then
     exit 1
 fi
 
+# Ask for the sudo password once and keep the session alive for the whole
+# run, so a long AUR build does not end with an expired sudo prompt.
+log "Checking sudo access"
+sudo -v
+( while kill -0 "$$" 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
+SUDO_KEEPALIVE=$!
+trap 'kill "$SUDO_KEEPALIVE" 2>/dev/null' EXIT
+
+log "Checking that the package mirrors respond"
+if ! timeout 90 sudo pacman -Sy >/dev/null 2>&1; then
+    warn "pacman could not sync in 90s; the mirrorlist copied from the ISO is probably stale. Falling back to two known-good mirrors."
+    sudo tee /etc/pacman.d/mirrorlist >/dev/null <<'MIRRORS'
+Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://mirrors.xtom.com/archlinux/$repo/os/$arch
+MIRRORS
+    sudo pacman -Syy
+fi
+
 log "Installing packages from the official repos"
 # shellcheck disable=SC2024  # stdin is the package list, not a privileged file
 sudo pacman -Syu --needed --noconfirm - < "$ARCH_DIR/pkglist-native.txt"
@@ -37,7 +55,8 @@ if ! command -v paru >/dev/null 2>&1; then
     log "Bootstrapping paru (AUR helper)"
     tmp="$(mktemp -d)"
     git clone --depth 1 https://aur.archlinux.org/paru.git "$tmp/paru"
-    (cd "$tmp/paru" && makepkg -si --noconfirm)
+    (cd "$tmp/paru" && makepkg -s --noconfirm)
+    sudo pacman -U --noconfirm "$tmp"/paru/paru-[0-9]*.pkg.tar.zst
     rm -rf "$tmp"
 fi
 
