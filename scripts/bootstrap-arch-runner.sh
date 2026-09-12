@@ -112,7 +112,11 @@ fi
 log "Installing the GitHub Actions runner"
 mkdir -p "$RUNNER_DIR"
 if [ ! -x "$RUNNER_DIR/config.sh" ]; then
-    version="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
+    # Capture first, then parse: piping curl into grep -m1 makes grep close the
+    # pipe early and curl fail with "(23) Failure writing output".
+    release_json="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest)"
+    version="$(grep -o '"tag_name": *"[^"]*"' <<<"$release_json" | cut -d'"' -f4 | sed 's/^v//')"
+    [ -n "$version" ] || { warn "Could not determine the latest runner version from the GitHub API."; exit 1; }
     tarball="actions-runner-linux-x64-${version}.tar.gz"
     curl -fsSL -o "$RUNNER_DIR/$tarball" "https://github.com/actions/runner/releases/download/v${version}/${tarball}"
     tar -xzf "$RUNNER_DIR/$tarball" -C "$RUNNER_DIR"
