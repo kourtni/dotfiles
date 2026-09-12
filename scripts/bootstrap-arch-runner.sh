@@ -164,7 +164,23 @@ if [ -f "$RUNNER_DIR/.runner" ]; then
     if [ ! -f "$RUNNER_DIR/.service" ]; then
         (cd "$RUNNER_DIR" && sudo ./svc.sh install "$USER")
     fi
-    if ! systemctl is-active --quiet "$(cat "$RUNNER_DIR/.service")"; then
+    service_name="$(cat "$RUNNER_DIR/.service")"
+
+    # svc.sh writes the unit with Restart=no, so a listener that dies (an OOM
+    # kill mid-build, say) stays dead until someone notices -- no good on a box
+    # running headless. A drop-in survives svc.sh regenerating the unit.
+    dropin="/etc/systemd/system/$service_name.d/restart.conf"
+    dropin_content='[Service]
+Restart=always
+RestartSec=5s'
+    if [ "$(sudo cat "$dropin" 2>/dev/null)" != "$dropin_content" ]; then
+        log "Installing the runner service restart drop-in"
+        sudo mkdir -p "$(dirname "$dropin")"
+        printf '%s\n' "$dropin_content" | sudo tee "$dropin" >/dev/null
+        sudo systemctl daemon-reload
+    fi
+
+    if ! systemctl is-active --quiet "$service_name"; then
         (cd "$RUNNER_DIR" && sudo ./svc.sh start)
     fi
 fi
