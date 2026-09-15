@@ -88,6 +88,7 @@ HOSTNAME=builder-linux2
 
 ln -sf /usr/share/zoneinfo/America/Chicago /etc/localtime
 hwclock --systohc
+readlink /etc/localtime    # must print /usr/share/zoneinfo/America/Chicago
 sed -i 's/^#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen
 locale-gen
 echo 'LANG=en_US.UTF-8' > /etc/locale.conf
@@ -119,10 +120,19 @@ passwd kourtni
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/wheel
 chmod 440 /etc/sudoers.d/wheel
 
-systemctl enable NetworkManager
+systemctl enable NetworkManager systemd-timesyncd
+
+# Boot the LTS kernel by default. Without this, grub-mkconfig chooses the
+# top-level entry by sorting the vmlinuz-* filenames, so which kernel boots
+# depends on which kernels happened to exist when grub.cfg was last
+# generated. That is how builder-linux1 ended up on mainline and
+# builder-linux2 on LTS from the same package set. Mainline stays installed
+# and bootable under "Advanced options" as a recovery kernel.
+echo 'GRUB_TOP_LEVEL="/boot/vmlinuz-linux-lts"' >> /etc/default/grub
 
 grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB
 grub-mkconfig -o /boot/grub/grub.cfg
+grep -m1 -A15 "^menuentry" /boot/grub/grub.cfg | grep vmlinuz   # must show vmlinuz-linux-lts
 exit
 ```
 
@@ -182,3 +192,22 @@ this repo depends on the difference.
 `builder-linux1` also has no `intel-ucode` installed. The new box gets it in
 `pacstrap`; run `sudo pacman -S intel-ucode && sudo grub-mkconfig -o
 /boot/grub/grub.cfg` on the old box to match.
+
+## Keeping the boxes identical
+
+Both boxes install `linux` and `linux-lts` and **boot LTS**. Nothing above is
+a one-time step: `scripts/bootstrap-arch-runner.sh` re-applies the timezone,
+the time sync service and the `GRUB_TOP_LEVEL` kernel pin on every run, so
+re-running it on an older box brings it in line. A box that was already
+running mainline needs a reboot after that run to land on LTS.
+
+Two things the bootstrap script cannot make identical:
+
+- **Kernel and package versions.** Arch is rolling, so boxes built weeks
+  apart differ until they are upgraded together. `sudo pacman -Syu` on both
+  in the same sitting is the only way to line them up, and the runners
+  should be idle when you do it.
+- **The disk layout**, which is fixed at install time (see above).
+
+`hostnamectl` and `timedatectl` on both boxes are the quickest check that a
+pair has not drifted apart.

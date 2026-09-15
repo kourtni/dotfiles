@@ -9,6 +9,7 @@ set -euo pipefail
 #   RUNNER_LABELS  extra comma-separated labels (default: nix-native, matching builder-linux1)
 #   RUNNER_REPO    owner/repo the runner is registered to (default: Chan-Ko-LLC/ck)
 #   RUNNER_TOKEN   registration token; fetched via `gh` if unset and gh is logged in
+#   TIMEZONE       IANA timezone for the box (default: America/Chicago)
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCH_DIR="$DOTFILES/arch"
@@ -16,6 +17,7 @@ RUNNER_REPO="${RUNNER_REPO:-Chan-Ko-LLC/ck}"
 RUNNER_NAME="${RUNNER_NAME:-$(hostnamectl --static)}"
 RUNNER_LABELS="${RUNNER_LABELS:-nix-native}"
 RUNNER_DIR="$HOME/actions-runner"
+TIMEZONE="${TIMEZONE:-America/Chicago}"
 
 log()  { printf '\n==> %s\n' "$*"; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
@@ -36,6 +38,19 @@ sudo -v
 ( while kill -0 "$$" 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
 SUDO_KEEPALIVE=$!
 trap 'kill "$SUDO_KEEPALIVE" 2>/dev/null' EXIT
+
+# Do this before pacman: a box with no timezone reports UTC, and a box with no
+# time sync drifts until TLS certificate checks start failing. builder-linux2
+# shipped with neither, which is why its clock read five hours off
+# builder-linux1's. Both settings are host state, not package state, so
+# nothing else in this repo restores them.
+log "Setting the timezone and enabling time sync"
+if [ "$(timedatectl show -p Timezone --value)" != "$TIMEZONE" ]; then
+    sudo timedatectl set-timezone "$TIMEZONE"
+fi
+if [ "$(timedatectl show -p NTP --value)" != "yes" ]; then
+    sudo timedatectl set-ntp true
+fi
 
 log "Checking that the package mirrors respond"
 if ! timeout 90 sudo pacman -Sy >/dev/null 2>&1; then
@@ -84,6 +99,36 @@ fi
 log "Enabling system services"
 sudo systemctl enable --now NetworkManager.service sshd.service nix-daemon.service
 sudo systemctl enable sddm.service
+
+# Every box installs both `linux` and `linux-lts` and boots LTS. grub-mkconfig
+# otherwise picks the top-level entry by sorting the vmlinuz-* filenames, so
+# which kernel boots depends on which kernels existed when grub.cfg was last
+# generated -- that is how builder-linux1 ended up on mainline and
+# builder-linux2 on LTS from an identical package set.
+log "Pinning the default boot kernel to linux-lts"
+if [ ! -f /boot/vmlinuz-linux-lts ]; then
+    warn "/boot/vmlinuz-linux-lts is missing; skipping the kernel pin. Install linux-lts and re-run this script."
+else
+    pin='GRUB_TOP_LEVEL="/boot/vmlinuz-linux-lts"'
+    if ! grep -qxF "$pin" /etc/default/grub; then
+        sudo sed -i '/^GRUB_TOP_LEVEL=/d' /etc/default/grub
+        echo "$pin" | sudo tee -a /etc/default/grub >/dev/null
+    fi
+    default_entry="$(grep -E '^GRUB_DEFAULT=' /etc/default/grub | cut -d= -f2- | tr -d '\"')"
+    if [ -n "$default_entry" ] && [ "$default_entry" != 0 ]; then
+        warn "GRUB_DEFAULT is '$default_entry', not 0; the kernel pin only controls the first menu entry."
+    fi
+    # The pin only takes effect through grub-mkconfig, and a grub.cfg written
+    # before linux-lts was installed keeps booting the old default forever, so
+    # regenerate whenever the top-level entry is not already the LTS kernel.
+    if [ "$(grep -m1 -oE '/vmlinuz-linux(-lts)?' /boot/grub/grub.cfg || true)" != /vmlinuz-linux-lts ]; then
+        sudo grub-mkconfig -o /boot/grub/grub.cfg
+    fi
+    case "$(uname -r)" in
+        *-lts) ;;
+        *) warn "Running $(uname -r); reboot to switch this box to the LTS kernel." ;;
+    esac
+fi
 
 # Arch's nix package ships no /nix/store; the daemon creates it lazily, and a
 # client that races it fails with 'opening file "/nix/store": No such file'.
