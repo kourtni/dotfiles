@@ -10,6 +10,8 @@ set -euo pipefail
 #   RUNNER_REPO    owner/repo the runner is registered to (default: Chan-Ko-LLC/ck)
 #   RUNNER_TOKEN   registration token; fetched via `gh` if unset and gh is logged in
 #   TIMEZONE       IANA timezone for the box (default: America/Chicago)
+#   LOCALE         system locale to generate and set (default: en_US.UTF-8)
+#   KEYMAP         console keymap (default: us)
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCH_DIR="$DOTFILES/arch"
@@ -18,6 +20,8 @@ RUNNER_NAME="${RUNNER_NAME:-$(hostnamectl --static)}"
 RUNNER_LABELS="${RUNNER_LABELS:-nix-native}"
 RUNNER_DIR="$HOME/actions-runner"
 TIMEZONE="${TIMEZONE:-America/Chicago}"
+LOCALE="${LOCALE:-en_US.UTF-8}"
+KEYMAP="${KEYMAP:-us}"
 
 log()  { printf '\n==> %s\n' "$*"; }
 warn() { printf 'WARNING: %s\n' "$*" >&2; }
@@ -50,6 +54,33 @@ if [ "$(timedatectl show -p Timezone --value)" != "$TIMEZONE" ]; then
 fi
 if [ "$(timedatectl show -p NTP --value)" != "yes" ]; then
     sudo timedatectl set-ntp true
+fi
+
+# Same class of problem as the timezone above: step 4 of arch/INSTALL.md writes
+# locale.conf and vconsole.conf inside the chroot, and builder-linux2 was left
+# on systemd's fallbacks (LANG=C.UTF-8, no keymap) because that block was
+# missed. LANG is not cosmetic on a build box -- C.UTF-8 and en_US.UTF-8 differ
+# in collation order and in date and number formatting, so the same job can
+# produce different output on two runners that look identical otherwise.
+log "Setting the locale and console keymap"
+# locale -a prints normalised names (en_US.utf8), so strip dashes from both
+# sides before comparing.
+if ! locale -a 2>/dev/null | tr -d '-' | grep -qix "${LOCALE//-/}"; then
+    if grep -qE "^#[[:space:]]*${LOCALE}[[:space:]]" /etc/locale.gen; then
+        sudo sed -i -E "s/^#[[:space:]]*(${LOCALE}[[:space:]])/\1/" /etc/locale.gen
+    elif ! grep -qE "^${LOCALE}[[:space:]]" /etc/locale.gen; then
+        # Not listed at all; locale-gen only builds what the file names.
+        printf '%s %s\n' "$LOCALE" "${LOCALE##*.}" | sudo tee -a /etc/locale.gen >/dev/null
+    fi
+    sudo locale-gen
+fi
+LOCALE_CHANGED=
+if ! grep -qx "LANG=$LOCALE" /etc/locale.conf 2>/dev/null; then
+    sudo localectl set-locale "LANG=$LOCALE"
+    LOCALE_CHANGED=1
+fi
+if ! grep -qx "KEYMAP=$KEYMAP" /etc/vconsole.conf 2>/dev/null; then
+    sudo localectl set-keymap "$KEYMAP"
 fi
 
 log "Checking that the package mirrors respond"
@@ -227,6 +258,13 @@ RestartSec=5s'
 
     if ! systemctl is-active --quiet "$service_name"; then
         (cd "$RUNNER_DIR" && sudo ./svc.sh start)
+    fi
+
+    # A running listener keeps the environment it started with, so jobs would
+    # still see the old LANG until the unit is restarted.
+    if [ -n "$LOCALE_CHANGED" ]; then
+        log "Restarting the runner service to pick up LANG=$LOCALE"
+        sudo systemctl restart "$service_name"
     fi
 fi
 

@@ -94,6 +94,7 @@ locale-gen
 echo 'LANG=en_US.UTF-8' > /etc/locale.conf
 echo 'KEYMAP=us' > /etc/vconsole.conf
 echo "$HOSTNAME" > /etc/hostname
+cat /etc/locale.conf /etc/vconsole.conf   # must print LANG=en_US.UTF-8 and KEYMAP=us
 
 ls /boot   # must list vmlinuz-linux and vmlinuz-linux-lts; if not, run: pacman -S linux linux-lts
 nano /etc/mkinitcpio.conf
@@ -197,9 +198,19 @@ this repo depends on the difference.
 
 Both boxes install `linux` and `linux-lts` and **boot LTS**. Nothing above is
 a one-time step: `scripts/bootstrap-arch-runner.sh` re-applies the timezone,
-the time sync service and the `GRUB_TOP_LEVEL` kernel pin on every run, so
-re-running it on an older box brings it in line. A box that was already
-running mainline needs a reboot after that run to land on LTS.
+the time sync service, the locale, the console keymap and the
+`GRUB_TOP_LEVEL` kernel pin on every run, so re-running it on an older box
+brings it in line. A box that was already running mainline needs a reboot
+after that run to land on LTS.
+
+That matters because the whole chroot block in step 4 is easy to skip in one
+go, and nothing downstream notices. `builder-linux2` was built with none of
+it: no `/etc/localtime`, no `/etc/adjtime`, `LANG=C.UTF-8` from systemd's
+fallback rather than `en_US.UTF-8`, and no keymap. Only the hostname was
+right, because step 5 catches that one. `LANG` is the dangerous one on a
+build box -- `C.UTF-8` and `en_US.UTF-8` sort and format differently, so the
+same job can produce different output on two runners that otherwise look
+identical.
 
 Two things the bootstrap script cannot make identical:
 
