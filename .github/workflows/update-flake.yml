@@ -98,7 +98,7 @@ jobs:
             echo '## Checklist'
             echo '- [ ] Review the changes in `flake.lock`'
             echo '- [ ] Test on WSL: `sudo nixos-rebuild switch --flake .#wsl`'
-            echo '- [ ] Test home config: `nix run .#home-manager -- switch --flake .`'
+            echo '- [ ] Test home config: `nix run .#home-manager -- switch -b backup --flake .#$(whoami)@x86_64-linux`'
             echo '- [ ] On a Mac: `darwin-rebuild build --flake .` if a darwin-specific change is suspected'
             echo 'EOF'
           } >> $GITHUB_OUTPUT
