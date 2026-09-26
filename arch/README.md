@@ -51,6 +51,11 @@ account can, so the script creates it with:
 
 Because that home is closed to you, commands in the runner directory need
 `sudo`, e.g. `sudo -u github-runner -H env -C /home/github-runner/actions-runner ./config.sh --version`.
+Always run them *as* `github-runner`, never as root. Jobs can rewrite any file
+in that home, including the runner's own `svc.sh`, so `sudo ./svc.sh` there
+would run whatever a job left behind as root. The script follows the same
+rule: it writes the systemd unit itself and manages the service with
+`systemctl`.
 
 ### Moving a runner off your account
 

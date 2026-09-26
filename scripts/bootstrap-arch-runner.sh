@@ -174,10 +174,14 @@ if [ "$RUNNER_USER" = "$USER" ]; then
     exit 1
 fi
 
-# Run a command as the runner account from inside its runner directory. Your
-# account cannot read that home (0700), so every look inside goes through sudo.
+# Workflow jobs run as RUNNER_USER and control every file in its home: any of
+# them can become a symlink or a script of the job's choosing. So nothing below
+# lets root touch that home. Commands there run as RUNNER_USER, and root only
+# writes the systemd unit and drop-in, named from RUNNER_REPO and RUNNER_NAME,
+# never from anything read out of the runner directory. In particular root
+# never runs the runner's svc.sh, which a job could have rewritten.
 as_runner() { sudo -u "$RUNNER_USER" -H env -C "$RUNNER_DIR" "$@"; }
-runner_has() { sudo test -e "$RUNNER_DIR/$1"; }
+runner_has() { sudo -u "$RUNNER_USER" test -e "$RUNNER_DIR/$1"; }
 
 log "Creating the $RUNNER_USER account"
 if ! id "$RUNNER_USER" >/dev/null 2>&1; then
@@ -204,7 +208,7 @@ if ! runner_has config.sh; then
 fi
 
 if runner_has .runner; then
-    log "Runner already registered as $(sudo grep -o '"agentName": *"[^"]*"' "$RUNNER_DIR/.runner" | cut -d'"' -f4); skipping registration"
+    log "Runner already registered as $(as_runner grep -o '"agentName": *"[^"]*"' .runner | cut -d'"' -f4); skipping registration"
 elif [ -z "$HOST_READY" ]; then
     warn "Host configuration is not complete yet; skipping runner registration until the next run."
 else
@@ -223,47 +227,69 @@ else
             --name "$RUNNER_NAME" \
             ${RUNNER_LABELS:+--labels "$RUNNER_LABELS"}
     else
-        warn "No registration token. Get one from https://github.com/$RUNNER_REPO/settings/actions/runners/new, then run:"
-        cat <<MSG
-  sudo -u $RUNNER_USER -H env -C $RUNNER_DIR ./config.sh --url https://github.com/$RUNNER_REPO --token <TOKEN> --name $RUNNER_NAME${RUNNER_LABELS:+ --labels $RUNNER_LABELS}
-  sudo env -C $RUNNER_DIR ./svc.sh install $RUNNER_USER && sudo env -C $RUNNER_DIR ./svc.sh start
-MSG
+        warn "No registration token. Get one from https://github.com/$RUNNER_REPO/settings/actions/runners/new, then re-run this script with it:"
+        echo "  RUNNER_TOKEN=<TOKEN> $0"
     fi
 fi
 
 # Ensure the service exists and is running whenever the runner is registered,
 # including when registration was done by hand or a previous run stopped early.
 if runner_has .runner; then
+    # config.sh's own naming, so a unit svc.sh installed earlier is the same unit.
+    service_name="actions.runner.${RUNNER_REPO//\//-}.${RUNNER_NAME}.service"
+    unit="/etc/systemd/system/$service_name"
+    restart=
+
     # Keep job temp files out of the 5.8G /tmp tmpfs, whose per-user quota
     # took builder-linux1 down with "Disk quota exceeded" (2026-09-06).
     sudo -u "$RUNNER_USER" mkdir -p "$RUNNER_HOME/.runner-tmp"
-    if ! sudo grep -q '^TMPDIR=' "$RUNNER_DIR/.env" 2>/dev/null; then
+    if ! as_runner grep -q '^TMPDIR=' .env 2>/dev/null; then
         echo "TMPDIR=$RUNNER_HOME/.runner-tmp" | as_runner tee -a .env >/dev/null
-        runner_has .service && sudo systemctl restart "$(sudo cat "$RUNNER_DIR/.service")" 2>/dev/null || true
+        restart=1
     fi
 
     log "Ensuring the runner service is installed and running"
-    if ! runner_has .service; then
-        sudo env -C "$RUNNER_DIR" ./svc.sh install "$RUNNER_USER"
-    fi
-    service_name="$(sudo cat "$RUNNER_DIR/.service")"
+    # What svc.sh install does, minus running svc.sh as root: runsvc.sh is
+    # copied as the runner user, and the unit comes from svc.sh's own template.
+    as_runner cp bin/runsvc.sh runsvc.sh
+    as_runner chmod 755 runsvc.sh
+    unit_content="[Unit]
+Description=GitHub Actions Runner (${RUNNER_REPO//\//-}.${RUNNER_NAME})
+After=network-online.target
+
+[Service]
+ExecStart=$RUNNER_DIR/runsvc.sh
+User=$RUNNER_USER
+WorkingDirectory=$RUNNER_DIR
+KillMode=process
+KillSignal=SIGTERM
+TimeoutStopSec=5min
+
+[Install]
+WantedBy=multi-user.target"
+    # svc.sh status and uninstall look the unit up in .service.
+    echo "$service_name" | as_runner tee .service >/dev/null
 
     # svc.sh writes the unit with Restart=no, so a listener that dies (an OOM
     # kill mid-build, say) stays dead until someone notices -- no good on a box
-    # running headless. A drop-in survives svc.sh regenerating the unit.
-    dropin="/etc/systemd/system/$service_name.d/restart.conf"
+    # running headless.
+    dropin="$unit.d/restart.conf"
     dropin_content='[Service]
 Restart=always
 RestartSec=5s'
-    if [ "$(sudo cat "$dropin" 2>/dev/null)" != "$dropin_content" ]; then
-        log "Installing the runner service restart drop-in"
-        sudo mkdir -p "$(dirname "$dropin")"
+    if [ "$(cat "$unit" 2>/dev/null)" != "$unit_content" ] \
+        || [ "$(cat "$dropin" 2>/dev/null)" != "$dropin_content" ]; then
+        log "Writing the runner service unit"
+        printf '%s\n' "$unit_content" | sudo tee "$unit" >/dev/null
+        sudo mkdir -p "$unit.d"
         printf '%s\n' "$dropin_content" | sudo tee "$dropin" >/dev/null
         sudo systemctl daemon-reload
+        restart=1
     fi
 
-    if ! systemctl is-active --quiet "$service_name"; then
-        sudo env -C "$RUNNER_DIR" ./svc.sh start
+    sudo systemctl enable --quiet "$service_name"
+    if [ -n "$restart" ] || ! systemctl is-active --quiet "$service_name"; then
+        sudo systemctl restart "$service_name"
     fi
 fi
 
