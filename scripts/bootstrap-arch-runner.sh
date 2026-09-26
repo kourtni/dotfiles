@@ -9,6 +9,7 @@ set -euo pipefail
 #   RUNNER_LABELS  extra comma-separated labels (default: nix-native, matching builder-linux1)
 #   RUNNER_REPO    owner/repo the runner is registered to (default: Chan-Ko-LLC/ck)
 #   RUNNER_TOKEN   registration token; fetched via `gh` if unset and gh is logged in
+#   RUNNER_USER    account the runner and its jobs run as (default: github-runner)
 #   TIMEZONE       IANA timezone for the box (default: America/Chicago)
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,7 +17,12 @@ ARCH_DIR="$DOTFILES/arch"
 RUNNER_REPO="${RUNNER_REPO:-Chan-Ko-LLC/ck}"
 RUNNER_NAME="${RUNNER_NAME:-$(hostnamectl --static)}"
 RUNNER_LABELS="${RUNNER_LABELS:-nix-native}"
-RUNNER_DIR="$HOME/actions-runner"
+# Jobs run as RUNNER_USER, never as you: anyone who can land a workflow change
+# can run code as that account. It is created below with no sudo, no login
+# shell and a 0700 home of its own, so jobs cannot reach your keys or tokens.
+RUNNER_USER="${RUNNER_USER:-github-runner}"
+RUNNER_HOME="/home/$RUNNER_USER"
+RUNNER_DIR="$RUNNER_HOME/actions-runner"
 TIMEZONE="${TIMEZONE:-America/Chicago}"
 
 log()  { printf '\n==> %s\n' "$*"; }
@@ -155,21 +161,50 @@ else
     warn "$DOTFILES/user-config.nix is missing. Copy it (and ~/.config/sops/age/keys.txt) from the existing box, then re-run this script."
 fi
 
+# A runner registered by an earlier version of this script lives in your own
+# home and runs as you. Registering a second one under the same name fails, so
+# stop and point at the one-time migration instead of guessing.
+if [ -f "$HOME/actions-runner/.runner" ] && [ "$HOME/actions-runner" != "$RUNNER_DIR" ]; then
+    warn "A runner is still registered as $USER in $HOME/actions-runner. Move it to $RUNNER_USER first: see \"Moving a runner off your account\" in $ARCH_DIR/README.md."
+    exit 1
+fi
+
+if [ "$RUNNER_USER" = "$USER" ]; then
+    warn "RUNNER_USER is your own account; jobs would run with your sudo and keys. Pick a dedicated account."
+    exit 1
+fi
+
+# Run a command as the runner account from inside its runner directory. Your
+# account cannot read that home (0700), so every look inside goes through sudo.
+as_runner() { sudo -u "$RUNNER_USER" -H env -C "$RUNNER_DIR" "$@"; }
+runner_has() { sudo test -e "$RUNNER_DIR/$1"; }
+
+log "Creating the $RUNNER_USER account"
+if ! id "$RUNNER_USER" >/dev/null 2>&1; then
+    # useradd leaves the password locked; nologin keeps SSH and the console out.
+    sudo useradd --create-home --home-dir "$RUNNER_HOME" --gid users \
+        --shell /usr/bin/nologin "$RUNNER_USER"
+fi
+if id -nG "$RUNNER_USER" | grep -qw wheel; then
+    warn "$RUNNER_USER is in wheel, so every job could sudo. Remove it with: sudo gpasswd -d $RUNNER_USER wheel"
+    exit 1
+fi
+
 log "Installing the GitHub Actions runner"
-mkdir -p "$RUNNER_DIR"
-if [ ! -x "$RUNNER_DIR/config.sh" ]; then
+sudo -u "$RUNNER_USER" mkdir -p "$RUNNER_DIR"
+if ! runner_has config.sh; then
     # Capture first, then parse: piping curl into grep -m1 makes grep close the
     # pipe early and curl fail with "(23) Failure writing output".
     release_json="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest)"
     version="$(grep -o '"tag_name": *"[^"]*"' <<<"$release_json" | cut -d'"' -f4 | sed 's/^v//')"
     [ -n "$version" ] || { warn "Could not determine the latest runner version from the GitHub API."; exit 1; }
     tarball="actions-runner-linux-x64-${version}.tar.gz"
-    curl -fsSL -o "$RUNNER_DIR/$tarball" "https://github.com/actions/runner/releases/download/v${version}/${tarball}"
-    tar -xzf "$RUNNER_DIR/$tarball" -C "$RUNNER_DIR"
+    as_runner curl -fsSL -o "$tarball" "https://github.com/actions/runner/releases/download/v${version}/${tarball}"
+    as_runner tar -xzf "$tarball"
 fi
 
-if [ -f "$RUNNER_DIR/.runner" ]; then
-    log "Runner already registered as $(grep -o '"agentName": *"[^"]*"' "$RUNNER_DIR/.runner" | cut -d'"' -f4); skipping registration"
+if runner_has .runner; then
+    log "Runner already registered as $(sudo grep -o '"agentName": *"[^"]*"' "$RUNNER_DIR/.runner" | cut -d'"' -f4); skipping registration"
 elif [ -z "$HOST_READY" ]; then
     warn "Host configuration is not complete yet; skipping runner registration until the next run."
 else
@@ -178,38 +213,40 @@ else
         token="$(gh api -X POST "repos/$RUNNER_REPO/actions/runners/registration-token" --jq .token)"
     fi
     if [ -n "$token" ]; then
-        log "Registering runner $RUNNER_NAME with $RUNNER_REPO"
-        (cd "$RUNNER_DIR" && ./config.sh --unattended \
+        log "Registering runner $RUNNER_NAME with $RUNNER_REPO as $RUNNER_USER"
+        # The token goes in the environment, not argv: sudo logs each command
+        # line to the journal. config.sh reads ACTIONS_RUNNER_INPUT_<option>.
+        ACTIONS_RUNNER_INPUT_TOKEN="$token" \
+            sudo --preserve-env=ACTIONS_RUNNER_INPUT_TOKEN -u "$RUNNER_USER" -H \
+            env -C "$RUNNER_DIR" ./config.sh --unattended \
             --url "https://github.com/$RUNNER_REPO" \
-            --token "$token" \
             --name "$RUNNER_NAME" \
-            ${RUNNER_LABELS:+--labels "$RUNNER_LABELS"})
+            ${RUNNER_LABELS:+--labels "$RUNNER_LABELS"}
     else
         warn "No registration token. Get one from https://github.com/$RUNNER_REPO/settings/actions/runners/new, then run:"
         cat <<MSG
-  cd $RUNNER_DIR
-  ./config.sh --url https://github.com/$RUNNER_REPO --token <TOKEN> --name $RUNNER_NAME${RUNNER_LABELS:+ --labels $RUNNER_LABELS}
-  sudo ./svc.sh install $USER && sudo ./svc.sh start
+  sudo -u $RUNNER_USER -H env -C $RUNNER_DIR ./config.sh --url https://github.com/$RUNNER_REPO --token <TOKEN> --name $RUNNER_NAME${RUNNER_LABELS:+ --labels $RUNNER_LABELS}
+  sudo env -C $RUNNER_DIR ./svc.sh install $RUNNER_USER && sudo env -C $RUNNER_DIR ./svc.sh start
 MSG
     fi
 fi
 
 # Ensure the service exists and is running whenever the runner is registered,
 # including when registration was done by hand or a previous run stopped early.
-if [ -f "$RUNNER_DIR/.runner" ]; then
+if runner_has .runner; then
     # Keep job temp files out of the 5.8G /tmp tmpfs, whose per-user quota
     # took builder-linux1 down with "Disk quota exceeded" (2026-09-06).
-    mkdir -p "$HOME/.runner-tmp"
-    if ! grep -q '^TMPDIR=' "$RUNNER_DIR/.env" 2>/dev/null; then
-        echo "TMPDIR=$HOME/.runner-tmp" >> "$RUNNER_DIR/.env"
-        [ -f "$RUNNER_DIR/.service" ] && sudo systemctl restart "$(cat "$RUNNER_DIR/.service")" 2>/dev/null || true
+    sudo -u "$RUNNER_USER" mkdir -p "$RUNNER_HOME/.runner-tmp"
+    if ! sudo grep -q '^TMPDIR=' "$RUNNER_DIR/.env" 2>/dev/null; then
+        echo "TMPDIR=$RUNNER_HOME/.runner-tmp" | as_runner tee -a .env >/dev/null
+        runner_has .service && sudo systemctl restart "$(sudo cat "$RUNNER_DIR/.service")" 2>/dev/null || true
     fi
 
     log "Ensuring the runner service is installed and running"
-    if [ ! -f "$RUNNER_DIR/.service" ]; then
-        (cd "$RUNNER_DIR" && sudo ./svc.sh install "$USER")
+    if ! runner_has .service; then
+        sudo env -C "$RUNNER_DIR" ./svc.sh install "$RUNNER_USER"
     fi
-    service_name="$(cat "$RUNNER_DIR/.service")"
+    service_name="$(sudo cat "$RUNNER_DIR/.service")"
 
     # svc.sh writes the unit with Restart=no, so a listener that dies (an OOM
     # kill mid-build, say) stays dead until someone notices -- no good on a box
@@ -226,7 +263,7 @@ RestartSec=5s'
     fi
 
     if ! systemctl is-active --quiet "$service_name"; then
-        (cd "$RUNNER_DIR" && sudo ./svc.sh start)
+        sudo env -C "$RUNNER_DIR" ./svc.sh start
     fi
 fi
 
