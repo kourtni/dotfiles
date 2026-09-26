@@ -83,6 +83,16 @@ arch-chroot /mnt
 
 Change `HOSTNAME` to the next free `builder-linuxN`.
 
+Before running `passwd` for root, generate a unique password in your password
+manager and save it as an entry named `<hostname> root` (for example
+`builder-linux2 root`). You will type it at the console, so turn off
+ambiguous characters in the generator. Nothing else records this
+password. Neither these steps nor any later provisioning sets it, and it is
+the only way into emergency mode on a headless runner. Use a different
+password on each runner so that a leak from one box doesn't expose the
+others. If a runner's root password is ever lost, reset it with
+`sudo passwd root` and update the password manager entry.
+
 ```bash
 HOSTNAME=builder-linux2
 
@@ -114,7 +124,7 @@ grep '^HOOKS' /etc/mkinitcpio.conf      # confirm the edit saved
 mkinitcpio -P
 lsinitcpio /boot/initramfs-linux.img | grep -c lvm   # must be greater than 0
 
-passwd                                   # root password; needed to log in to emergency mode
+passwd                                   # root password from your password manager; needed to log in to emergency mode
 useradd -m -G wheel kourtni
 passwd kourtni
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/wheel
