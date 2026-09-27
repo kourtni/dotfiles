@@ -238,6 +238,26 @@ if runner_has .runner; then
     # config.sh's own naming, so a unit svc.sh installed earlier is the same unit.
     service_name="actions.runner.${RUNNER_REPO//\//-}.${RUNNER_NAME}.service"
     unit="/etc/systemd/system/$service_name"
+
+    # The name comes from this run's RUNNER_NAME and RUNNER_REPO, which need not
+    # match the ones the runner was registered with: register with an override,
+    # re-run without it, and a second unit would start a second listener on the
+    # same registration. Refuse instead. The units are root's, so they are the
+    # record to trust; .runner catches a runner registered without a unit yet.
+    # Neither is used to build a path.
+    for other in /etc/systemd/system/actions.runner.*.service; do
+        [ -f "$other" ] && [ "$other" != "$unit" ] || continue
+        if grep -qxF "WorkingDirectory=$RUNNER_DIR" "$other"; then
+            warn "$(basename "$other") already runs $RUNNER_DIR, but this run would install $service_name. Re-run with the RUNNER_NAME and RUNNER_REPO it was registered with."
+            exit 1
+        fi
+    done
+    registered_name="$(as_runner grep -o '"agentName": *"[^"]*"' .runner | cut -d'"' -f4)"
+    registered_url="$(as_runner grep -o '"gitHubUrl": *"[^"]*"' .runner | cut -d'"' -f4)"
+    if [ "$registered_name" != "$RUNNER_NAME" ] || [ "${registered_url%/}" != "https://github.com/$RUNNER_REPO" ]; then
+        warn "The runner in $RUNNER_DIR is registered as $registered_name for $registered_url, not $RUNNER_NAME for https://github.com/$RUNNER_REPO. Re-run with RUNNER_NAME=$registered_name and the matching RUNNER_REPO."
+        exit 1
+    fi
     restart=
 
     # Keep job temp files out of the 5.8G /tmp tmpfs, whose per-user quota
