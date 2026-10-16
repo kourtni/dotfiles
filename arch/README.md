@@ -22,7 +22,7 @@ second (or third) identical box can be stood up from a fresh Arch install.
    ```bash
    sudo pacman -Syu --needed git
    git clone https://github.com/kourtni/dotfiles.git ~/dotfiles
-   ~/dotfiles/scripts/bootstrap-arch-runner.sh
+   RUNNER_REPO=<owner>/<repo> ~/dotfiles/scripts/bootstrap-arch-runner.sh
    ```
 
 3. Copy `user-config.nix` and `~/.config/sops/age/keys.txt` over from the
@@ -71,7 +71,7 @@ sudo ./svc.sh stop
 sudo ./svc.sh uninstall
 ./config.sh remove --token "$(gh api -X POST \
   repos/<owner>/<repo>/actions/runners/remove-token --jq .token)"
-cd ~ && ~/dotfiles/scripts/bootstrap-arch-runner.sh
+cd ~ && RUNNER_REPO=<owner>/<repo> ~/dotfiles/scripts/bootstrap-arch-runner.sh
 ```
 
 `config.sh remove` deletes the registration on GitHub and the local
@@ -117,8 +117,7 @@ script does that). Two things are not carried over:
   new box with `nmcli device wifi connect <SSID> --ask`.
 
 - **Router-side settings.** If the existing box has a DHCP reservation or a
-  DNS name on the `ck-runners.lan` network, add a matching entry for the new
-  box on the router. Nothing on the host controls this.
+  DNS name on your LAN, add a matching entry for the new box on the router. Nothing on the host controls this.
 
 ## Refreshing the package lists
 
