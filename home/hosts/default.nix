@@ -31,5 +31,6 @@ in
     "hypr" = { source = ./builder-linux/hypr; recursive = true; };
     "waybar" = { source = ./builder-linux/waybar; recursive = true; };
     "wofi" = { source = ./builder-linux/wofi; recursive = true; };
+    "kitty" = { source = ./builder-linux/kitty; recursive = true; };
   };
 }
