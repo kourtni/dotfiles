@@ -159,7 +159,9 @@ else
     # The pin only takes effect through grub-mkconfig, and a grub.cfg written
     # before linux-lts was installed keeps booting the old default forever, so
     # regenerate whenever the top-level entry is not already the LTS kernel.
-    if [ "$(grep -m1 -oE '/vmlinuz-linux(-lts)?' /boot/grub/grub.cfg || true)" != /vmlinuz-linux-lts ]; then
+    # grub.cfg is root-only (0600), so read it with sudo: a plain grep fails and
+    # makes every run regenerate it.
+    if [ "$(sudo grep -m1 -oE '/vmlinuz-linux(-lts)?' /boot/grub/grub.cfg || true)" != /vmlinuz-linux-lts ]; then
         sudo grub-mkconfig -o /boot/grub/grub.cfg
     fi
     case "$(uname -r)" in
