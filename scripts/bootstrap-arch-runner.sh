@@ -64,8 +64,9 @@ fi
 # produce different output on two runners that look identical otherwise.
 log "Setting the locale and console keymap"
 # locale -a prints normalised names (en_US.utf8), so strip dashes from both
-# sides before comparing.
-if ! locale -a 2>/dev/null | tr -d '-' | grep -qix "${LOCALE//-/}"; then
+# sides before comparing. No -q on grep: it must read all of its input, or tr
+# can take SIGPIPE and pipefail would fail the check even on a match.
+if ! locale -a 2>/dev/null | tr -d '-' | grep -ix "${LOCALE//-/}" >/dev/null; then
     if grep -qE "^#[[:space:]]*${LOCALE}[[:space:]]" /etc/locale.gen; then
         sudo sed -i -E "s/^#[[:space:]]*(${LOCALE}[[:space:]])/\1/" /etc/locale.gen
     elif ! grep -qE "^${LOCALE}[[:space:]]" /etc/locale.gen; then
