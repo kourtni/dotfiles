@@ -7,7 +7,7 @@ set -euo pipefail
 # Environment overrides:
 #   RUNNER_NAME    runner name to register (default: hostname)
 #   RUNNER_LABELS  extra comma-separated labels (default: nix-native, matching builder-linux1)
-#   RUNNER_REPO    owner/repo the runner is registered to (default: Chan-Ko-LLC/ck)
+#   RUNNER_REPO    owner/repo the runner is registered to (required)
 #   RUNNER_TOKEN   registration token; fetched via `gh` if unset and gh is logged in
 #   RUNNER_USER    account the runner and its jobs run as (default: github-runner)
 #   TIMEZONE       IANA timezone for the box (default: America/Chicago)
@@ -16,7 +16,7 @@ set -euo pipefail
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARCH_DIR="$DOTFILES/arch"
-RUNNER_REPO="${RUNNER_REPO:-Chan-Ko-LLC/ck}"
+RUNNER_REPO="${RUNNER_REPO:-}"
 RUNNER_NAME="${RUNNER_NAME:-$(hostnamectl --static)}"
 RUNNER_LABELS="${RUNNER_LABELS:-nix-native}"
 # Jobs run as RUNNER_USER, never as you: anyone who can land a workflow change
@@ -34,6 +34,14 @@ warn() { printf 'WARNING: %s\n' "$*" >&2; }
 
 if [ "$(id -u)" -eq 0 ]; then
     echo "Run this as your regular user, not root (it uses sudo where needed)." >&2
+    exit 1
+fi
+# No default: this repo is public, and the runner's repo is not its business.
+# Required on every run, re-runs included, because the unit name is built from
+# it and root never reads it back out of the runner's (job-writable) home.
+if [[ ! "$RUNNER_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+    echo "Set RUNNER_REPO to the owner/repo this runner serves, e.g.:" >&2
+    echo "  RUNNER_REPO=<owner>/<repo> $0" >&2
     exit 1
 fi
 if [ ! -f /etc/arch-release ]; then
@@ -260,7 +268,7 @@ else
             ${RUNNER_LABELS:+--labels "$RUNNER_LABELS"}
     else
         warn "No registration token. Get one from https://github.com/$RUNNER_REPO/settings/actions/runners/new, then re-run this script with it:"
-        echo "  RUNNER_TOKEN=<TOKEN> $0"
+        echo "  RUNNER_REPO=$RUNNER_REPO RUNNER_TOKEN=<TOKEN> $0"
     fi
 fi
 
