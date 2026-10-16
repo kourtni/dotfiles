@@ -200,9 +200,10 @@ The layout above merges the two into one properly flagged EFI partition
 mounted at `/boot`, which is the Arch wiki's standard arrangement. Nothing in
 this repo depends on the difference.
 
-`builder-linux1` also has no `intel-ucode` installed. The new box gets it in
-`pacstrap`; run `sudo pacman -S intel-ucode && sudo grub-mkconfig -o
-/boot/grub/grub.cfg` on the old box to match.
+`builder-linux1` was also installed without `intel-ucode`. It is in
+`arch/pkglist-native.txt`, so the bootstrap script installs it on any box that
+lacks it, and the `microcode` hook in `mkinitcpio.conf` bundles it into the
+initramfs that the install rebuilds. It loads from the next reboot.
 
 ## Keeping the boxes identical
 
