@@ -1,4 +1,4 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, osConfig ? null, ... }:
 
 let
   # Create a file with hostname detection
@@ -10,10 +10,12 @@ let
   isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
   # Hostname detection above runs inside the build sandbox on Linux, where the
   # hostname is always "localhost", so the Arch desktop boxes are matched by
-  # platform instead: native Linux that is neither NixOS nor WSL.
+  # platform instead: native Linux that is neither NixOS nor WSL. osConfig
+  # (set when Home Manager runs as a system module) is checked first because
+  # the path checks are always false in pure evaluation.
   isLinux = pkgs.stdenv.hostPlatform.isLinux;
-  isNixOS = builtins.pathExists /etc/nixos;
-  isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
+  isNixOS = (isLinux && osConfig != null) || builtins.pathExists /etc/nixos;
+  isWSL = (osConfig.wsl.enable or false) || builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
   isArchDesktop = isLinux && !isNixOS && !isWSL;
 in
 {

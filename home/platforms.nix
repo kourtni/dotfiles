@@ -1,10 +1,15 @@
-{ config, pkgs, lib, antigravity-nix, ... }:
+{ config, pkgs, lib, antigravity-nix, osConfig ? null, ... }:
 
 let
   # Base platform detection
   isLinux = pkgs.stdenv.hostPlatform.isLinux;
   isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
-  
+
+  # When Home Manager runs as a NixOS or nix-darwin module, osConfig is the
+  # system configuration; standalone it is null. Prefer it over the path
+  # checks below, which are always false in pure evaluation.
+  wslEnabled = osConfig.wsl.enable or false;
+
   # WSL detection (independent of OS distribution)
   wslInteropExists = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
   kernelVersionContainsMicrosoft = 
@@ -16,10 +21,11 @@ let
       else false;
   wslEnvExists = builtins.pathExists /run/WSL;
   
-  isWSL = wslInteropExists || kernelVersionContainsMicrosoft || wslEnvExists;
-  
-  # NixOS detection (independent of WSL)
-  isNixOS = builtins.pathExists /etc/nixos;
+  isWSL = wslEnabled || wslInteropExists || kernelVersionContainsMicrosoft || wslEnvExists;
+
+  # NixOS detection (independent of WSL). osConfig is also set under
+  # nix-darwin, so only count it on Linux.
+  isNixOS = (isLinux && osConfig != null) || builtins.pathExists /etc/nixos;
   
   # Granular system type detection
   systemType = if isDarwin then "darwin"
