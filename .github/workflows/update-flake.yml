@@ -5,10 +5,15 @@ on:
     # Runs every Monday at 9:00 AM UTC
     - cron: "0 9 * * 1"
   workflow_dispatch: # Allow manual triggering
+  # Test changes to this workflow: runs the update and the builds, but doesn't
+  # create the update PR.
+  pull_request:
+    paths:
+      - .github/workflows/update-flake.yml
 
 # Avoid overlapping runs racing on the same branch
 concurrency:
-  group: flake-update
+  group: flake-update-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +38,10 @@ jobs:
       - name: Check for changes
         id: changes
         run: |
-          if git diff --quiet flake.lock; then
+          # Pull request runs always validate, even if no input moved.
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          elif git diff --quiet flake.lock; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -43,8 +51,6 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         run: |
           # Create a working user-config.nix for CI builds.
-          # `system` is set so the flake evaluates fully; it's only actually
-          # consumed by the nixos/darwin system configs (not built here).
           cat > user-config.nix << 'EOF'
           {
             username = "runner";
@@ -60,21 +66,21 @@ jobs:
           EOF
 
       # --- Validation -------------------------------------------------------
-      # We build the x86_64-linux home config natively. We deliberately do NOT
-      # build the other configs here, because a plain Linux runner cannot:
-      #   * darwin / aarch64: evaluating them forces an import-from-derivation
-      #     that must BUILD a foreign-system derivation — impossible without a
-      #     matching runner (macOS) or emulation.
-      #   * nixosConfigurations.wsl: imports /etc/nixos/hardware-configuration.nix
-      #     by absolute path (machine-specific, gitignored), which is forbidden
-      #     in pure flake eval and absent in CI.
-      # See the repo docs for opt-in ways to validate those (macOS matrix job;
-      # impure WSL build with a stub hardware-configuration.nix).
+      # We build the x86_64-linux home config and the NixOS-WSL system natively.
+      # We deliberately do NOT build darwin / aarch64 here: evaluating them
+      # forces an import-from-derivation that must BUILD a foreign-system
+      # derivation, which needs a matching runner (macOS) or emulation.
 
       - name: Build home config (x86_64-linux)
         if: steps.changes.outputs.changed == 'true'
         run: |
           nix build '.#homeConfigurations."runner@x86_64-linux".activationPackage' --no-link --print-build-logs
+
+      - name: Build NixOS-WSL system
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          nix build '.#nixosConfigurations.wsl.config.system.build.toplevel' --no-link --print-build-logs
+          df -h /
       # ----------------------------------------------------------------------
 
       - name: Generate update summary
@@ -92,19 +98,19 @@ jobs:
             echo ''
             echo '## Validated in CI (x86_64-linux runner)'
             echo '- [x] Built `homeConfigurations."*@x86_64-linux"` (native build)'
+            echo '- [x] Built `nixosConfigurations.wsl` (native build)'
             echo '- [ ] darwin / aarch64 NOT validated here (needs a macOS runner)'
-            echo '- [ ] `nixosConfigurations.wsl` NOT validated here (absolute hardware-configuration.nix import)'
             echo ''
             echo '## Checklist'
             echo '- [ ] Review the changes in `flake.lock`'
-            echo '- [ ] Test on WSL: `sudo nixos-rebuild switch --flake .#wsl`'
+            echo '- [ ] Test on WSL: `nixos-rebuild switch --sudo --flake .#wsl`'
             echo '- [ ] Test home config: `nix run .#home-manager -- switch -B "$PWD/scripts/hm-backup" --flake .#$(whoami)@x86_64-linux`'
             echo '- [ ] On a Mac: `darwin-rebuild build --flake .` if a darwin-specific change is suspected'
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
       - name: Create Pull Request
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && github.event_name != 'pull_request'
         uses: peter-evans/create-pull-request@v8
         with:
           # Note: PRs created with GITHUB_TOKEN won't trigger other workflows.
