@@ -548,10 +548,16 @@ The flake-update workflow builds the `x86_64-linux` home config and the
 NixOS-WSL system. A plain Linux runner cannot validate the other targets:
 
 - [ ] **macOS / darwin** — evaluating a darwin config forces an
-  import-from-derivation that must *build* an `aarch64-darwin` derivation, which
-  a Linux runner can't do. Add a `macos-latest` matrix job that really builds it
-  (e.g. `homeConfigurations."runner@aarch64-darwin".activationPackage`, or
-  `darwin-rebuild build --flake .`).
+  import-from-derivation that must *build* a darwin derivation, which a Linux
+  runner can't do. The Macs rebuild with `darwin-rebuild` (see `hm-rebuild`), so
+  validate what they actually run, `darwinConfigurations.*.system`, which
+  covers nix-darwin and Home Manager together, rather than
+  `homeConfigurations`. The repo is public, so macOS runner minutes are free.
+  - **Apple Silicon:** add a `macos-latest` job that builds
+    `darwinConfigurations.aarch64-darwin.system`.
+  - **Intel:** `x86_64-darwin` follows its own 26.05 inputs, so it needs its own
+    build. That needs an Intel macOS runner. If none is available, keep it a
+    manual `darwin-rebuild build --flake .` on the Intel Mac.
 
 ## 🛠️ Customization
 
