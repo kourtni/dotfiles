@@ -522,9 +522,24 @@ home-manager switch --flake .#$(whoami)@x86_64-linux
 Two scheduled workflows keep the repo from going stale:
 
 - **`.github/workflows/update-flake.yml`** — weekly (Mondays 09:00 UTC). Runs
-  `nix flake update`, builds the `x86_64-linux` home config to catch breakage,
-  and opens a PR labeled `dependencies`. This keeps *versions* current
-  (including Nix itself, which ships via `nixpkgs`).
+  `nix flake update`, then builds every configuration against the new lock on
+  a native runner to catch breakage, and opens a PR labeled `dependencies`
+  only if all of them build. This keeps *versions* current (including Nix
+  itself, which ships via `nixpkgs`).
+
+  | Runner | Builds |
+  |---|---|
+  | `ubuntu-latest` | `homeConfigurations."*@x86_64-linux"`, `nixosConfigurations.wsl` |
+  | `ubuntu-24.04-arm` | `homeConfigurations."*@aarch64-linux"` |
+  | `macos-latest` | `darwinConfigurations.aarch64-darwin` |
+  | `macos-15-intel` | `darwinConfigurations.x86_64-darwin` |
+
+  The Macs are checked through `darwinConfigurations` (nix-darwin plus Home
+  Manager), since that's what `darwin-rebuild` applies. `macos-15-intel` is
+  GitHub's last Intel macOS runner, available until macOS 15 is retired (fall
+  2027); after that the Intel Mac can only be checked by hand
+  (`darwin-rebuild build --flake .`). Changes to the workflow itself trigger a
+  test run on their PR, which builds everything but doesn't open the update PR.
 - **`.github/workflows/audit-tools.yml`** — monthly (1st, 10:00 UTC). Checks
   each externally-sourced tool (flake inputs, npm packages, pinned `fetchurl`
   binaries) for **deprecation or supersession** — the kind of staleness
@@ -541,23 +556,6 @@ Two scheduled workflows keep the repo from going stale:
     that provides your Copilot seat must have the **Copilot CLI policy enabled**
     ("Allow use of Copilot CLI"). If it isn't, the Copilot step fails gracefully
     and the issue falls back to the deterministic findings.
-
-#### TODO: broaden update-flake.yml CI validation
-
-The flake-update workflow builds the `x86_64-linux` home config and the
-NixOS-WSL system. A plain Linux runner cannot validate the other targets:
-
-- [ ] **macOS / darwin** — evaluating a darwin config forces an
-  import-from-derivation that must *build* a darwin derivation, which a Linux
-  runner can't do. The Macs rebuild with `darwin-rebuild` (see `hm-rebuild`), so
-  validate what they actually run, `darwinConfigurations.*.system`, which
-  covers nix-darwin and Home Manager together, rather than
-  `homeConfigurations`. The repo is public, so macOS runner minutes are free.
-  - **Apple Silicon:** add a `macos-latest` job that builds
-    `darwinConfigurations.aarch64-darwin.system`.
-  - **Intel:** `x86_64-darwin` follows its own 26.05 inputs, so it needs its own
-    build. That needs an Intel macOS runner. If none is available, keep it a
-    manual `darwin-rebuild build --flake .` on the Intel Mac.
 
 ## 🛠️ Customization
 
