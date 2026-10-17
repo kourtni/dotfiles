@@ -1,13 +1,14 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, osConfig ? null, ... }:
 
 let
   userConfig = import ../user-config.nix;
   npmUtils = import ./npm-utils.nix { inherit pkgs; };
-  
-  # Platform detection
+
+  # Platform detection (osConfig first: the path check is always false in pure
+  # evaluation)
   isLinux = pkgs.stdenv.hostPlatform.isLinux;
   isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
-  isWSL = builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
+  isWSL = (osConfig.wsl.enable or false) || builtins.pathExists /proc/sys/fs/binfmt_misc/WSLInterop;
   
   # Platform-specific VS Code paths
   vscodeWSLPath = "/mnt/c/Users/${userConfig.windowsUsername}/AppData/Local/Programs/Microsoft VS Code/bin";
@@ -196,7 +197,7 @@ in
       hm-rebuild = "darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}";
     } else {
       # On Linux, use standalone home-manager
-      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system}";
+      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch -B ~/dotfiles/scripts/hm-backup --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system}";
     }) // lib.optionalAttrs isLinux {
       # Portable VS Code launcher that works on any WSL system (Linux only)
       code = ''

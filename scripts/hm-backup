@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Home Manager backup command: moves a file that is in the way of a managed
+# file to <file>.hm-backup-<timestamp>. Unlike a fixed backup extension, a
+# later collision on the same path never fails or overwrites an older backup.
+set -euo pipefail
+
+target="$1"
+backup="$target.hm-backup-$(date +%Y%m%d-%H%M%S)"
+n=1
+while [[ -e "$backup" || -L "$backup" ]]; do
+  backup="$target.hm-backup-$(date +%Y%m%d-%H%M%S)-$n"
+  n=$((n + 1))
+done
+
+mv -- "$target" "$backup"
+echo "Backed up '$target' to '$backup'"

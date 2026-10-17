@@ -12,19 +12,21 @@ let
 in
 
 {
-  imports = [
-    /etc/nixos/hardware-configuration.nix
-  ];
+  # No hardware-configuration.nix: WSL itself sets up the root disk, swap and
+  # its runtime mounts (/usr/lib/wsl/*, /lib/modules/<kernel>, /mnt/wslg, ...).
+  # Declaring them here makes systemd own and restart them on every switch,
+  # which unmounts the GPU drivers and breaks when Windows updates the kernel.
 
   wsl.enable = true;
   wsl.defaultUser = userConfig.username;
   wsl.interop.register = true;  # Enable Windows executable interop
 
-  # Override problematic auto-generated mounts with nofail option
-  fileSystems."/usr/lib/wsl/drivers" = lib.mkForce {
-    device = "none";
-    fsType = "none";
-    options = [ "nofail" ];
+  # systemd-binfmt first flushes all binfmt_misc rules, which the WSL kernel
+  # refuses (EROFS). It logs "ignoring" but still exits 1 after successfully
+  # registering WSLInterop, so accept that status and verify the rule instead.
+  systemd.services.systemd-binfmt.serviceConfig = {
+    SuccessExitStatus = [ 1 ];
+    ExecStartPost = [ "${pkgs.coreutils}/bin/test -e /proc/sys/fs/binfmt_misc/WSLInterop" ];
   };
 
   # Nix configuration
