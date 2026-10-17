@@ -197,7 +197,7 @@ in
       hm-rebuild = "darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}";
     } else {
       # On Linux, use standalone home-manager
-      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system}";
+      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch -B ~/dotfiles/scripts/hm-backup --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system}";
     }) // lib.optionalAttrs isLinux {
       # Portable VS Code launcher that works on any WSL system (Linux only)
       code = ''

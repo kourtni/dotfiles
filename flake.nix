@@ -76,6 +76,9 @@
       homeManagerSettings = stack: {
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
+        # Move files that are in the way of managed ones aside instead of
+        # failing activation (standalone uses the same script via -B).
+        home-manager.backupCommand = ./scripts/hm-backup;
         home-manager.extraSpecialArgs = { inherit (stack) antigravity-nix; };
         home-manager.users.${username} = import ./home/default.nix;
         home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];

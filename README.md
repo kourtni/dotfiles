@@ -439,6 +439,30 @@ home-manager switch --flake .#$(whoami)@aarch64-linux
 hm-rebuild
 ```
 
+### Conflicting Files
+
+When Home Manager needs to manage a file that already exists and isn't one of
+its own links (for example a hand-written `~/.bashrc`), it would normally stop
+with `Existing file '...' would be clobbered`. Instead, `scripts/hm-backup`
+moves the existing file to `<file>.hm-backup-<timestamp>` and activation
+continues. Every backup gets a unique name, so a later conflict on the same
+file never fails or overwrites an older backup.
+
+- **NixOS (WSL) and macOS**: set as `home-manager.backupCommand` in
+  `flake.nix`, so `nixos-rebuild` and `darwin-rebuild` back up automatically.
+- **Standalone Home Manager (Linux)**: `hm-rebuild` and
+  `scripts/bootstrap-arch-runner.sh` pass `-B ~/dotfiles/scripts/hm-backup`.
+  When running `home-manager switch` by hand, add the same flag:
+  ```bash
+  home-manager switch -B ~/dotfiles/scripts/hm-backup --flake .#$(whoami)@x86_64-linux
+  ```
+
+Activation prints `Backed up '<file>' to '<backup>'` for each one. Compare a
+backup with the managed version and delete it once nothing in it is needed:
+```bash
+find ~ -name '*.hm-backup-*' -not -path '*/.cache/*' 2>/dev/null
+```
+
 ### System-Specific Commands
 
 ```bash

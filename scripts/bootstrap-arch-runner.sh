@@ -154,8 +154,8 @@ fi
 HOST_READY=
 if [ -f "$DOTFILES/user-config.nix" ]; then
     log "Applying Home Manager configuration"
-    # -b backup moves aside files Home Manager wants to own (e.g. the .bashrc from /etc/skel).
-    (cd "$DOTFILES" && nix run .#home-manager -- switch -b backup --flake ".#$USER@x86_64-linux")
+    # -B moves aside files Home Manager wants to own (e.g. the .bashrc from /etc/skel).
+    (cd "$DOTFILES" && nix run .#home-manager -- switch -B "$DOTFILES/scripts/hm-backup" --flake ".#$USER@x86_64-linux")
     HOST_READY=1
 else
     warn "$DOTFILES/user-config.nix is missing. Copy it (and ~/.config/sops/age/keys.txt) from the existing box, then re-run this script."
