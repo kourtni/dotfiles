@@ -16,12 +16,14 @@ concurrency:
   group: flake-update-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   update:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -47,8 +49,62 @@ jobs:
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Setup CI user config
+      # The build jobs and the PR use this exact lock, so every platform is
+      # validated against the same input revisions.
+      - name: Upload updated lock
         if: steps.changes.outputs.changed == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: flake-lock
+          path: flake.lock
+
+  # --- Validation ---------------------------------------------------------
+  # Each config is built natively on a matching runner. Evaluating a darwin
+  # config forces an import-from-derivation that must BUILD a darwin
+  # derivation, so the Macs can't be checked from Linux. The Macs rebuild with
+  # darwin-rebuild, so their darwinConfigurations (nix-darwin plus Home
+  # Manager) are what gets built, not the standalone homeConfigurations.
+  build:
+    needs: update
+    if: needs.update.outputs.changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64-linux
+            runner: ubuntu-latest
+            targets: >-
+              .#homeConfigurations."runner@x86_64-linux".activationPackage
+              .#nixosConfigurations.wsl.config.system.build.toplevel
+          - name: aarch64-linux
+            runner: ubuntu-24.04-arm
+            targets: .#homeConfigurations."runner@aarch64-linux".activationPackage
+          - name: aarch64-darwin
+            runner: macos-latest
+            targets: .#darwinConfigurations.aarch64-darwin.system
+          # GitHub's last Intel macOS image; Intel support ends when macOS 15
+          # is retired (fall 2027).
+          - name: x86_64-darwin
+            runner: macos-15-intel
+            targets: .#darwinConfigurations.x86_64-darwin.system
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Use updated lock
+        uses: actions/download-artifact@v8
+        with:
+          name: flake-lock
+
+      - name: Setup CI user config
         run: |
           # Create a working user-config.nix for CI builds.
           cat > user-config.nix << 'EOF'
@@ -65,26 +121,36 @@ jobs:
           }
           EOF
 
-      # --- Validation -------------------------------------------------------
-      # We build the x86_64-linux home config and the NixOS-WSL system natively.
-      # We deliberately do NOT build darwin / aarch64 here: evaluating them
-      # forces an import-from-derivation that must BUILD a foreign-system
-      # derivation, which needs a matching runner (macOS) or emulation.
-
-      - name: Build home config (x86_64-linux)
-        if: steps.changes.outputs.changed == 'true'
+      - name: Build
         run: |
-          nix build '.#homeConfigurations."runner@x86_64-linux".activationPackage' --no-link --print-build-logs
-
-      - name: Build NixOS-WSL system
-        if: steps.changes.outputs.changed == 'true'
-        run: |
-          nix build '.#nixosConfigurations.wsl.config.system.build.toplevel' --no-link --print-build-logs
+          nix build ${{ matrix.targets }} --no-link --print-build-logs
           df -h /
-      # ----------------------------------------------------------------------
+  # ------------------------------------------------------------------------
+
+  pr:
+    needs: [update, build]
+    # A failed build on any platform means no update PR.
+    if: needs.update.outputs.changed == 'true' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Use updated lock
+        uses: actions/download-artifact@v8
+        with:
+          name: flake-lock
 
       - name: Generate update summary
-        if: steps.changes.outputs.changed == 'true'
         id: summary
         run: |
           {
@@ -96,21 +162,21 @@ jobs:
             nix flake metadata --json | jq -r '.locks.nodes | to_entries[] | select(.value.locked.rev) | "\(.key): \(.value.locked.rev[0:7])"'
             echo '```'
             echo ''
-            echo '## Validated in CI (x86_64-linux runner)'
-            echo '- [x] Built `homeConfigurations."*@x86_64-linux"` (native build)'
-            echo '- [x] Built `nixosConfigurations.wsl` (native build)'
-            echo '- [ ] darwin / aarch64 NOT validated here (needs a macOS runner)'
+            echo '## Validated in CI (native builds)'
+            echo '- [x] Built `homeConfigurations."*@x86_64-linux"` and `"*@aarch64-linux"`'
+            echo '- [x] Built `nixosConfigurations.wsl`'
+            echo '- [x] Built `darwinConfigurations.aarch64-darwin` (macOS, Apple Silicon)'
+            echo '- [x] Built `darwinConfigurations.x86_64-darwin` (macOS, Intel)'
             echo ''
             echo '## Checklist'
             echo '- [ ] Review the changes in `flake.lock`'
             echo '- [ ] Test on WSL: `nixos-rebuild switch --sudo --flake .#wsl`'
             echo '- [ ] Test home config: `nix run .#home-manager -- switch -B "$PWD/scripts/hm-backup" --flake .#$(whoami)@x86_64-linux`'
-            echo '- [ ] On a Mac: `darwin-rebuild build --flake .` if a darwin-specific change is suspected'
+            echo '- [ ] On each Mac: `darwin-rebuild switch --flake .`'
             echo 'EOF'
           } >> $GITHUB_OUTPUT
 
       - name: Create Pull Request
-        if: steps.changes.outputs.changed == 'true' && github.event_name != 'pull_request'
         uses: peter-evans/create-pull-request@v8
         with:
           # Note: PRs created with GITHUB_TOKEN won't trigger other workflows.
