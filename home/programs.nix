@@ -175,13 +175,13 @@ in
         switch $system_type
           case "darwin"
             echo "Nix is managed by nix-darwin."
-            echo "Run: darwin-rebuild switch --flake ~/dotfiles"
+            echo "Run: sudo darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}"
             echo ""
             echo "To update nixpkgs (which includes Nix), first run:"
             echo "  cd ~/dotfiles && nix flake update"
           case "nixos" "nixos-wsl"
             echo "Nix is managed by NixOS."
-            echo "Run: sudo nixos-rebuild switch --flake ~/dotfiles"
+            echo "Run: nixos-rebuild switch --sudo --flake ~/dotfiles#wsl"
             echo ""
             echo "To update nixpkgs (which includes Nix), first run:"
             echo "  cd ~/dotfiles && nix flake update"
@@ -193,8 +193,9 @@ in
         end
       '';
     } // (if isDarwin then {
-      # On macOS, use darwin-rebuild which manages both system and home-manager
-      hm-rebuild = "darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}";
+      # On macOS, use darwin-rebuild which manages both system and home-manager.
+      # nix-darwin only activates as root.
+      hm-rebuild = "sudo darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}";
     } else {
       # On Linux, use standalone home-manager
       hm-rebuild = "nix run ~/dotfiles#home-manager -- switch -B ~/dotfiles/scripts/hm-backup --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system}";

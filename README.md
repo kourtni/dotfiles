@@ -474,6 +474,17 @@ command under `sudo` instead makes Nix write root-owned objects into the
 repository's `.git`, after which `git fetch` fails with `insufficient permission
 for adding an object to repository database`.
 
+### macOS (nix-darwin)
+
+```bash
+# Rebuild the nix-darwin system (includes Home Manager)
+sudo darwin-rebuild switch --flake ~/dotfiles#aarch64-darwin  # Apple Silicon
+sudo darwin-rebuild switch --flake ~/dotfiles#x86_64-darwin   # Intel
+```
+The configs are named by architecture rather than hostname, so the `#<system>`
+target is required. nix-darwin only activates as root, hence `sudo`. The
+`hm-rebuild` alias runs the right command for the current Mac.
+
 ## ⚙️ User Configuration
 
 The `user-config.nix` file contains all user-specific settings:
@@ -538,8 +549,9 @@ Two scheduled workflows keep the repo from going stale:
   Manager), since that's what `darwin-rebuild` applies. `macos-15-intel` is
   GitHub's last Intel macOS runner, available until macOS 15 is retired (fall
   2027); after that the Intel Mac can only be checked by hand
-  (`darwin-rebuild build --flake .`). Changes to the workflow itself trigger a
-  test run on their PR, which builds everything but doesn't open the update PR.
+  (`darwin-rebuild build --flake .#x86_64-darwin`). Changes to the workflow
+  itself trigger a test run on their PR, which builds everything but doesn't
+  open the update PR.
 - **`.github/workflows/audit-tools.yml`** — monthly (1st, 10:00 UTC). Checks
   each externally-sourced tool (flake inputs, npm packages, pinned `fetchurl`
   binaries) for **deprecation or supersession** — the kind of staleness
