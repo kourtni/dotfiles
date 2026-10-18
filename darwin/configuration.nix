@@ -55,7 +55,15 @@ in
   users.users.${userConfig.username} = {
     home = userConfig.homeDirectory;
     shell = pkgs.fish;
+  } // lib.optionalAttrs (userConfig.uid or null != null) {
+    uid = userConfig.uid;
   };
+
+  # nix-darwin only applies `shell` (and other properties) to users it
+  # manages, so the login shell stays whatever macOS set until the user is
+  # listed here. That requires the uid, which lives in the untracked
+  # user-config.nix; without it the user is left alone.
+  users.knownUsers = lib.optional (userConfig.uid or null != null) userConfig.username;
 
   # Enable fish shell
   programs.fish.enable = true;

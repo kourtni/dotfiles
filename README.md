@@ -456,6 +456,7 @@ The `user-config.nix` file contains all user-specific settings:
   # User settings
   username = "your-username";
   homeDirectory = "/home/your-username";
+  uid = null; # macOS only: `id -u`, lets nix-darwin set your login shell to fish
   
   # Git settings (overridden by sops secrets if configured)
   git = {

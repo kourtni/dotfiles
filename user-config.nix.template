@@ -5,7 +5,8 @@
   # User settings
   username = "your-username";
   homeDirectory = "/home/your-username";  # or "/Users/your-username" on macOS
-  
+  uid = null; # macOS only: your numeric uid (`id -u`) so nix-darwin can set your login shell; null leaves the account alone
+
   # Git settings (can be overridden by sops secrets if configured)
   git = {
     name = "Your Full Name";
