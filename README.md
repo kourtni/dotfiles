@@ -32,6 +32,8 @@ A portable, reproducible development environment configuration using Nix flakes 
    cp user-config.nix.template user-config.nix
    # Edit user-config.nix with your username, email, etc.
    ```
+   On macOS, also set `uid` to the output of `id -u` so nix-darwin can make
+   fish your login shell (see [Login shell](#login-shell)).
 
 3. **Install**:
    
@@ -446,6 +448,24 @@ sudo darwin-rebuild switch --flake ~/dotfiles#x86_64-darwin   # Intel
 The configs are named by architecture rather than hostname, so the `#<system>`
 target is required. nix-darwin only activates as root, hence `sudo`. The
 `hm-rebuild` alias runs the right command for the current Mac.
+
+#### Login shell
+
+nix-darwin only changes the login shell (to fish) for users it manages, and
+managing a user requires its numeric uid. Keep the uid in your local
+`user-config.nix`, not in the repo:
+
+1. Get your uid: `id -u` (usually `501` for the first account on a Mac).
+2. Set it in `user-config.nix`: `uid = 501;`
+3. Rebuild with `darwin-rebuild switch` (above), then open a new terminal
+   window. `echo $SHELL` should print `/run/current-system/sw/bin/fish`.
+
+With `uid = null` (the default) nix-darwin leaves the account alone and macOS
+keeps its default shell (zsh). If the uid doesn't match the account,
+activation prints `existing user ... has unexpected uid` and skips the change.
+
+The prompt uses Nerd Font glyphs, so set your terminal's font to a Nerd Font
+(see the note printed during activation for Homebrew casks).
 
 ## ⚙️ User Configuration
 
