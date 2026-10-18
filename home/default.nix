@@ -9,7 +9,6 @@ in
     ./programs.nix
     ./platforms.nix
     ./hosts/default.nix
-    ./mcp-servers.nix
   ];
 
   # sops-nix configuration

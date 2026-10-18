@@ -104,11 +104,8 @@ in
 
       # GitHub PAT for Claude Code's user-level `github` MCP server, which
       # expands this variable into its Authorization header and resolves it
-      # from its own process environment. The shadcn wrapper in
-      # mcp-servers.nix exports the same secret, but only for itself: an
-      # export inside a script reaches that process and its children, never
-      # the surrounding shell. Setting it session-wide is what lets anything
-      # launched from a shell, Claude Code included, see it.
+      # from its own process environment. Setting it session-wide is what
+      # lets anything launched from a shell, Claude Code included, see it.
       #
       # Interpolate the secret's path and read it at runtime. Baking the
       # value in (home.sessionVariables) would place the token in the

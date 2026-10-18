@@ -115,59 +115,21 @@ dotfiles/
 │   └── zram-generator.conf      # zram swap config
 ├── scripts/
 │   ├── bootstrap-arch-runner.sh # Turn a fresh Arch install into a runner box
-│   └── setup-mcp.sh             # Add MCP servers to a project
+│   └── hm-backup                # Home Manager backup command for conflicting files
 └── README.md
 ```
 
-## 🖥️ MCP Server Management
+## 🖥️ MCP Servers
 
-This repository can also be used to manage Model Context Protocol (MCP) server configurations.
+This repository doesn't install or configure any MCP servers. Add them per
+project, in that project's own MCP configuration (for Claude Code, a
+`.mcp.json` or `claude mcp add`), so each project gets only the servers it
+needs.
 
-- **Configuration**: Server details are defined in `home/mcp-servers.nix`.
-- **Setup**: The `scripts/setup-mcp.sh` script applies the configurations to the servers.
-
-### Available MCP Servers
-
-1. **shadcn-ui-mcp-server**: Access to shadcn/ui v4 components and blocks
-2. **context7**: Upstash Context7 MCP server for context management
-3. **playwright**: Browser automation and testing via Playwright
-4. **nixos**: NixOS configuration and package management assistance
-5. **testing-sensei**: Enforces and guides unit testing principles in code generation
-
-**GitHub MCP servers** are not installed by this repository. A GitHub MCP server is declared in the MCP client's own configuration, and each client keeps that configuration somewhere different. The clients installed here (Claude Code, Codex, Antigravity, opencode) all read their own files, so there is no single place this repository could put it.
-
-What this repository does supply is the credential. A server that authenticates with a bearer header resolves `GITHUB_PERSONAL_ACCESS_TOKEN` from its own process environment, and any client launched from a shell inherits the export described in Secrets Management, whichever client it is.
-
-### Managing MCP Servers
-
-#### On Linux/WSL:
-MCP servers can be managed as systemd services:
-
-```bash
-# For managed servers (shadcn, context7, testing-sensei):
-mcp-<server>-status   # Check server status via systemctl
-mcp-<server>-start    # Start the server via systemctl
-mcp-<server>-stop     # Stop the server via systemctl
-```
-
-#### On macOS:
-MCP servers are invoked on-demand by Claude Code directly. No manual management is needed.
-
-```bash
-mcp-status           # Check which MCP servers are installed
-mcp-<server>-start   # Shows info that servers auto-start on macOS
-```
-
-**Note**: The `playwright` and `nixos` servers are invoked on-demand on all platforms.
-
-### Adding MCP Servers to Projects
-
-Run the setup script in any project directory:
-```bash
-~/dotfiles/scripts/setup-mcp.sh
-```
-
-This creates a `.mcp.json` file that configures Claude Code to use the available MCP servers.
+What this repository does supply is a GitHub credential. A server that
+authenticates with a bearer header resolves `GITHUB_PERSONAL_ACCESS_TOKEN` from
+its own process environment, and any client launched from a shell inherits the
+export described in Secrets Management, whichever client it is.
 
 ## NixOS Hardware Configuration
 
@@ -314,7 +276,7 @@ The two GitHub tokens are separate secrets with different consumers. Neither is 
 | Secret | Consumed by | Notes |
 |--------|-------------|-------|
 | `github/token` | An activation script writes it to `~/.git-credentials` | Only reached when no other helper claims `github.com` first. If `gh auth setup-git` has run, gh's URL-scoped helper in `~/.gitconfig` takes precedence and this value goes unused. |
-| `github/mcp_token` | Exported as `GITHUB_PERSONAL_ACCESS_TOKEN` in every interactive fish shell | Read by tools following that naming convention: MCP servers that authenticate to GitHub with a bearer header, and the shadcn wrapper, which uses it to lift API rate limits. |
+| `github/mcp_token` | Exported as `GITHUB_PERSONAL_ACCESS_TOKEN` in every interactive fish shell | Read by tools following that naming convention: MCP servers that authenticate to GitHub with a bearer header. |
 
 Notes on the exported variable:
 
