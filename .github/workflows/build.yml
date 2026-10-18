@@ -1,0 +1,97 @@
+name: Build
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - docs/**
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - docs/**
+  # update-flake.yml calls this to build against its updated lock.
+  workflow_call:
+    inputs:
+      lock-artifact:
+        description: Name of an artifact in the calling run holding the flake.lock to build with
+        type: string
+        default: ""
+
+# A new push supersedes the previous build of the same PR or branch. Under
+# workflow_call the github context is the caller's, so the workflow name keeps
+# update-flake.yml's build from cancelling this one when a PR changes the
+# workflows and both run; the event name keeps scheduled and push builds apart.
+concurrency:
+  group: build-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Each config is built natively on a matching runner. Evaluating a darwin
+  # config forces an import-from-derivation that must BUILD a darwin
+  # derivation, so the Macs can't be checked from Linux. The Macs rebuild with
+  # darwin-rebuild, so their darwinConfigurations (nix-darwin plus Home
+  # Manager) are what gets built, not the standalone homeConfigurations.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64-linux
+            runner: ubuntu-latest
+            targets: >-
+              .#homeConfigurations."runner@x86_64-linux".activationPackage
+              .#nixosConfigurations.wsl.config.system.build.toplevel
+          - name: aarch64-linux
+            runner: ubuntu-24.04-arm
+            targets: .#homeConfigurations."runner@aarch64-linux".activationPackage
+          - name: aarch64-darwin
+            runner: macos-latest
+            targets: .#darwinConfigurations.aarch64-darwin.system
+          # GitHub's last Intel macOS image; Intel support ends when macOS 15
+          # is retired (fall 2027).
+          - name: x86_64-darwin
+            runner: macos-15-intel
+            targets: .#darwinConfigurations.x86_64-darwin.system
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Use updated lock
+        if: inputs.lock-artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.lock-artifact }}
+
+      - name: Setup CI user config
+        run: |
+          # Create a working user-config.nix for CI builds.
+          cat > user-config.nix << 'EOF'
+          {
+            username = "runner";
+            homeDirectory = "/home/runner";
+            git = {
+              name = "CI Runner";
+              email = "ci@example.com";
+            };
+            windowsUsername = "runner";
+            system = "x86_64-linux";
+            stateVersion = "24.11";
+          }
+          EOF
+
+      - name: Build
+        run: |
+          nix build ${{ matrix.targets }} --no-link --print-build-logs
+          df -h /

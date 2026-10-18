@@ -492,13 +492,9 @@ home-manager switch --flake .#$(whoami)@x86_64-linux
 
 ### Automated maintenance (GitHub Actions)
 
-Two scheduled workflows keep the repo from going stale:
-
-- **`.github/workflows/update-flake.yml`** — weekly (Mondays 09:00 UTC). Runs
-  `nix flake update`, then builds every configuration against the new lock on
-  a native runner to catch breakage, and opens a PR labeled `dependencies`
-  only if all of them build. This keeps *versions* current (including Nix
-  itself, which ships via `nixpkgs`).
+- **`.github/workflows/build.yml`** — on every PR and every push to `main`
+  (except changes that only touch Markdown or `docs/`). Builds every
+  configuration on a native runner against the committed lock:
 
   | Runner | Builds |
   |---|---|
@@ -511,9 +507,16 @@ Two scheduled workflows keep the repo from going stale:
   Manager), since that's what `darwin-rebuild` applies. `macos-15-intel` is
   GitHub's last Intel macOS runner, available until macOS 15 is retired (fall
   2027); after that the Intel Mac can only be checked by hand
-  (`darwin-rebuild build --flake .#x86_64-darwin`). Changes to the workflow
-  itself trigger a test run on their PR, which builds everything but doesn't
-  open the update PR.
+  (`darwin-rebuild build --flake .#x86_64-darwin`).
+
+Two scheduled workflows keep the repo from going stale:
+
+- **`.github/workflows/update-flake.yml`** — weekly (Mondays 09:00 UTC). Runs
+  `nix flake update`, builds every configuration against the new lock with
+  `build.yml`, and opens a PR labeled `dependencies` only if all of them
+  build. This keeps *versions* current (including Nix itself, which ships via
+  `nixpkgs`). A PR that changes either workflow also gets a test run of this
+  one, which builds everything but doesn't open the update PR.
 - **`.github/workflows/audit-tools.yml`** — monthly (1st, 10:00 UTC). Checks
   each externally-sourced tool (flake inputs, npm packages, pinned `fetchurl`
   binaries) for **deprecation or supersession** — the kind of staleness
