@@ -5,11 +5,7 @@
 # NixOS-WSL specific options are documented on the NixOS-WSL repository:
 # https://github.com/nix-community/NixOS-WSL
 
-{ config, lib, pkgs, ... }:
-
-let
-  userConfig = import ../user-config.nix;
-in
+{ userConfig, config, lib, pkgs, ... }:
 
 {
   # No hardware-configuration.nix: WSL itself sets up the root disk, swap and

@@ -29,8 +29,10 @@ A portable, reproducible development environment configuration using Nix flakes 
 
 2. **Create your user configuration**:
    ```bash
-   cp user-config.nix.template user-config.nix
-   # Edit user-config.nix with your username, email, etc.
+   mkdir -p "$HOME/.config/dotfiles"
+   # Refuses to overwrite an existing file.
+   (set -C; cat user-config.nix.template > "$HOME/.config/dotfiles/user-config.nix")
+   # Edit ~/.config/dotfiles/user-config.nix with your username, email, etc.
    ```
    On macOS, also set `uid` to the output of `id -u` so nix-darwin can make
    fish your login shell (see [Login shell](#login-shell)).
@@ -42,39 +44,44 @@ A portable, reproducible development environment configuration using Nix flakes 
    **For macOS/Darwin users:**
    ```bash
    # Intel Mac:
-   nix run .#home-manager -- switch --flake .#$(whoami)@x86_64-darwin
+   nix run .#home-manager -- switch --flake .#$(whoami)@x86_64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
    
    # Apple Silicon (M1/M2/M3):
-   nix run .#home-manager -- switch --flake .#$(whoami)@aarch64-darwin
+   nix run .#home-manager -- switch --flake .#$(whoami)@aarch64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
    ```
    
    **For Linux/WSL users:**
    ```bash
    # x86_64 Linux:
-   nix run .#home-manager -- switch --flake .#$(whoami)@x86_64-linux
+   nix run .#home-manager -- switch --flake .#$(whoami)@x86_64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
    
    # ARM64 Linux:
-   nix run .#home-manager -- switch --flake .#$(whoami)@aarch64-linux
+   nix run .#home-manager -- switch --flake .#$(whoami)@aarch64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
    ```
    
    **For NixOS users:**
    ```bash
-   nixos-rebuild switch --sudo --flake .#wsl
+   nixos-rebuild switch --sudo --flake .#wsl --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
    ```
 
-### Quick Install (Advanced)
+### Local configuration input
 
-If you want to try the configuration as-is, you must specify your system:
+Every rebuild must pass these flags (included in the examples below):
+
 ```bash
-# Intel Mac:
-nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles#kourtni@x86_64-darwin
-
-# Apple Silicon Mac:
-nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles#kourtni@aarch64-darwin
-
-# x86_64 Linux:
-nix run github:kourtni/dotfiles#home-manager -- switch --flake github:kourtni/dotfiles#kourtni@x86_64-linux
+--override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 ```
+
+The input is the **directory** containing `user-config.nix`. It stays outside
+this checkout, so ordinary Git commits, pulls, and branch switches do not
+include or overwrite your settings. `--no-write-lock-file` keeps the local path
+and content hash out of the repository's lock file. No `--impure` flag is needed.
+The default input deliberately fails with setup instructions when a configuration
+is required; it never silently selects a sample user.
+
+Use the same flags when building directly from `github:kourtni/dotfiles`.
+After activation, `hm-rebuild` includes them automatically. If your configured
+`username` differs from `whoami`, use that username in the output selector.
 
 ## 🖥️ Supported Platforms
 
@@ -99,7 +106,7 @@ The configuration automatically detects your platform and adapts accordingly:
 dotfiles/
 ├── flake.nix                    # Main flake configuration
 ├── flake.lock                   # Locked dependencies
-├── user-config.nix              # User-specific settings (create from template)
+├── config-default/              # Fails with setup instructions unless overridden
 ├── user-config.nix.template     # Template for user configuration
 ├── home/
 │   ├── default.nix              # Main home-manager configuration
@@ -316,16 +323,16 @@ in
 To rebuild with host-specific settings, just use the normal rebuild command:
 ```bash
 # Intel Mac:
-home-manager switch --flake .#$(whoami)@x86_64-darwin
+home-manager switch --flake .#$(whoami)@x86_64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # Apple Silicon Mac:
-home-manager switch --flake .#$(whoami)@aarch64-darwin
+home-manager switch --flake .#$(whoami)@aarch64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # x86_64 Linux:
-home-manager switch --flake .#$(whoami)@x86_64-linux
+home-manager switch --flake .#$(whoami)@x86_64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # ARM64 Linux:
-home-manager switch --flake .#$(whoami)@aarch64-linux
+home-manager switch --flake .#$(whoami)@aarch64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # Or use the hm-rebuild alias which handles architecture automatically
 hm-rebuild
@@ -366,7 +373,7 @@ To add packages only to your current machine:
      ];
    }
    ```
-3. Rebuild with: `home-manager switch --flake .#$(whoami)@<system-architecture>`
+3. Rebuild with: `home-manager switch --flake .#$(whoami)@<system-architecture> --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file`
 
    Where `<system-architecture>` is one of: `x86_64-darwin`, `aarch64-darwin`, `x86_64-linux`, or `aarch64-linux`
 
@@ -377,16 +384,16 @@ To add packages only to your current machine:
 ```bash
 # Switch to new configuration (MUST specify system):
 # Intel Mac:
-home-manager switch --flake .#$(whoami)@x86_64-darwin
+home-manager switch --flake .#$(whoami)@x86_64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # Apple Silicon Mac:
-home-manager switch --flake .#$(whoami)@aarch64-darwin
+home-manager switch --flake .#$(whoami)@aarch64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # x86_64 Linux:
-home-manager switch --flake .#$(whoami)@x86_64-linux
+home-manager switch --flake .#$(whoami)@x86_64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # ARM64 Linux:
-home-manager switch --flake .#$(whoami)@aarch64-linux
+home-manager switch --flake .#$(whoami)@aarch64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # Quick rebuild (aliased as 'hm-rebuild' in fish) - Works on all platforms
 # Automatically uses your current username and system architecture
@@ -408,7 +415,7 @@ file never fails or overwrites an older backup.
   `scripts/bootstrap-arch-runner.sh` pass `-B ~/dotfiles/scripts/hm-backup`.
   When running `home-manager switch` by hand, add the same flag:
   ```bash
-  home-manager switch -B ~/dotfiles/scripts/hm-backup --flake .#$(whoami)@x86_64-linux
+  home-manager switch -B ~/dotfiles/scripts/hm-backup --flake .#$(whoami)@x86_64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
   ```
 
 Activation prints `Backed up '<file>' to '<backup>'` for each one. Compare a
@@ -421,17 +428,17 @@ find ~ -name '*.hm-backup-*' -not -path '*/.cache/*' 2>/dev/null
 
 ```bash
 # Use specific system configuration (replace 'username' with your actual username)
-home-manager switch --flake .#username@x86_64-darwin   # macOS Intel
-home-manager switch --flake .#username@aarch64-darwin  # macOS Apple Silicon
-home-manager switch --flake .#username@x86_64-linux    # Linux x64
-home-manager switch --flake .#username@aarch64-linux   # Linux ARM
+home-manager switch --flake .#username@x86_64-darwin  --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file  # macOS Intel
+home-manager switch --flake .#username@aarch64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file  # macOS Apple Silicon
+home-manager switch --flake .#username@x86_64-linux   --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file  # Linux x64
+home-manager switch --flake .#username@aarch64-linux  --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file  # Linux ARM
 ```
 
 ### NixOS (WSL)
 
 ```bash
 # Rebuild NixOS configuration
-nixos-rebuild switch --sudo --flake .#wsl
+nixos-rebuild switch --sudo --flake .#wsl --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 ```
 `--sudo` builds as your user and only activates as root. Running the whole
 command under `sudo` instead makes Nix write root-owned objects into the
@@ -442,8 +449,8 @@ for adding an object to repository database`.
 
 ```bash
 # Rebuild the nix-darwin system (includes Home Manager)
-sudo darwin-rebuild switch --flake ~/dotfiles#aarch64-darwin  # Apple Silicon
-sudo darwin-rebuild switch --flake ~/dotfiles#x86_64-darwin   # Intel
+sudo darwin-rebuild switch --flake ~/dotfiles#aarch64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file  # Apple Silicon
+sudo darwin-rebuild switch --flake ~/dotfiles#x86_64-darwin  --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file  # Intel
 ```
 The configs are named by architecture rather than hostname, so the `#<system>`
 target is required. nix-darwin only activates as root, hence `sudo`. The
@@ -469,7 +476,68 @@ The prompt uses Nerd Font glyphs, so set your terminal's font to a Nerd Font
 
 ## ⚙️ User Configuration
 
-The `user-config.nix` file contains all user-specific settings:
+Your `~/.config/dotfiles/user-config.nix` contains all user-specific settings.
+Only `user-config.nix.template` is maintained in Git; copy new options from it
+into your local file as needed. Keep a separate backup of your local settings.
+
+The configuration input is copied into the Nix store, which is normally readable
+by other local users. Keep this directory limited to configuration files; store
+credentials in the existing sops setup, not here.
+
+### Validation and optional settings
+
+Before evaluating a user configuration, the flake reports all missing or invalid
+fields together. It does not fill required fields from the template or modify
+your file. Syntax errors in the Nix file must be fixed before field validation
+can run.
+
+- Required everywhere: `username`, `homeDirectory` (an absolute path string),
+  `stateVersion`, `git.name`, and `git.email`. All must be non-empty strings.
+- `system` is required for NixOS and optional for standalone Home Manager and
+  nix-darwin. When supplied, it must be one of the four supported architectures
+  listed above; the selected configuration still determines which platform builds.
+- `uid` defaults to `null`; an explicit value must be a non-negative integer.
+- `windowsUsername` defaults to `""`. This skips the configured Windows user
+  path; the `code` function still tries its other Windows installation paths.
+
+For example, a file containing only `username` produces one error listing
+`homeDirectory`, `stateVersion`, `git.name`, and `git.email`, plus `system` when
+building NixOS. Fix the listed fields and rerun your rebuild command. No new
+configuration is activated when validation fails.
+
+Run the validator's regression tests with:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+### Migrating an existing checkout
+
+Before pulling the change that removes the old tracked file, preserve your
+customized configuration outside the repository:
+
+```bash
+mkdir -p "$HOME/.config/dotfiles"
+# Refuses to overwrite an existing external configuration; compare manually if it exists.
+(set -C; cat user-config.nix > "$HOME/.config/dotfiles/user-config.nix")
+cmp user-config.nix "$HOME/.config/dotfiles/user-config.nix"
+```
+
+Continue only after the copy succeeds and you have verified your settings.
+Clear any old local Git flags:
+
+```bash
+git update-index --no-assume-unchanged --no-skip-worktree user-config.nix
+```
+
+If Git blocks the pull because the old tracked file has local edits, after
+verifying the external copy, run `git restore -- user-config.nix` and pull again.
+The migration removes the old tracked file. No Git index flags are needed for
+the external configuration. Do not copy your settings back into the checkout.
+Existing shells keep the old `hm-rebuild` until you rebuild with the explicit
+flags below and start a new shell.
+
+### Settings
 
 ```nix
 {
@@ -485,9 +553,10 @@ The `user-config.nix` file contains all user-specific settings:
   };
   
   # Platform-specific paths
-  windowsUsername = "your-windows-username"; # For WSL VS Code integration (ignored on macOS)
+  windowsUsername = ""; # Optional Windows username for WSL VS Code integration
   
   # System settings
+  system = "x86_64-linux"; # Required for NixOS; optional otherwise
   stateVersion = "24.11"; # Home Manager state version
 }
 ```
@@ -502,13 +571,13 @@ nix flake update
 
 # Apply updates (MUST specify system):
 # Intel Mac:
-home-manager switch --flake .#$(whoami)@x86_64-darwin
+home-manager switch --flake .#$(whoami)@x86_64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # Apple Silicon Mac:
-home-manager switch --flake .#$(whoami)@aarch64-darwin
+home-manager switch --flake .#$(whoami)@aarch64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 
 # x86_64 Linux:
-home-manager switch --flake .#$(whoami)@x86_64-linux
+home-manager switch --flake .#$(whoami)@x86_64-linux --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 ```
 
 ### Automated maintenance (GitHub Actions)
@@ -528,7 +597,7 @@ home-manager switch --flake .#$(whoami)@x86_64-linux
   Manager), since that's what `darwin-rebuild` applies. `macos-15-intel` is
   GitHub's last Intel macOS runner, available until macOS 15 is retired (fall
   2027); after that the Intel Mac can only be checked by hand
-  (`darwin-rebuild build --flake .#x86_64-darwin`).
+  (`darwin-rebuild build --flake .#x86_64-darwin --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file`).
 
 Two scheduled workflows keep the repo from going stale:
 
@@ -646,7 +715,7 @@ echo "System: $SYSTEM_TYPE, NixOS: $IS_NIXOS, WSL: $IS_WSL"
 sops -d home/secrets/secrets.enc.yaml
 
 # Check flake evaluation
-nix flake check
+nix flake check --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 ```
 
 ## 📄 License

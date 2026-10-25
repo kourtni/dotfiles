@@ -1,8 +1,5 @@
-{ config, home-manager, pkgs, lib, antigravity-nix, ... }:
+{ userConfig, config, home-manager, pkgs, lib, antigravity-nix, ... }:
 
-let
-  userConfig = import ../user-config.nix;
-in
 {
   imports = [
     # Note: sops-nix is imported at the system level in flake.nix

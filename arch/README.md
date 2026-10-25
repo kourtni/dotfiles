@@ -25,7 +25,7 @@ second (or third) identical box can be stood up from a fresh Arch install.
    RUNNER_REPO=<owner>/<repo> ~/dotfiles/scripts/bootstrap-arch-runner.sh
    ```
 
-3. Copy `user-config.nix` and `~/.config/sops/age/keys.txt` over from the
+3. Copy `~/.config/dotfiles/user-config.nix` and `~/.config/sops/age/keys.txt` over from the
    existing box (neither is in git), then re-run the script. It picks up where
    it left off: every step is idempotent.
 4. Register the runner. The script does this automatically when `gh` is

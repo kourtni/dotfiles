@@ -21,7 +21,7 @@
 #   wsl --shutdown                            # then reopen WSL normally
 #
 # After reopening as kourtni, apply the (already-updated) config and verify:
-#   sudo nixos-rebuild switch --flake ~/dotfiles#wsl
+#   nixos-rebuild switch --sudo --flake ~/dotfiles#wsl --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file
 #   loginctl show-user kourtni --property=Linger      # -> Linger=yes
 #   ls -la /run/user/$(id -u)/systemd/                # -> exists, owned by you
 #
@@ -67,4 +67,4 @@ find / -xdev -uid "$OLD_UID" -print0 2>/dev/null | xargs -0 -r chown -h "$NEW_UI
 
 echo ">> Done. '$USER_NAME' is now UID $(id -u "$USER_NAME")."
 echo ">> Next: exit this shell, run 'wsl --shutdown' from Windows, reopen WSL, then:"
-echo "     sudo nixos-rebuild switch --flake ~/dotfiles#wsl"
+echo '     nixos-rebuild switch --sudo --flake ~/dotfiles#wsl --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file'
