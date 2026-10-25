@@ -2,7 +2,7 @@
 secrets.yaml
 
 # Personal Config Files
-user-config.nix
+/user-config.nix
 
 # npm global packages
 .npm-global/

@@ -1,8 +1,4 @@
-{ config, pkgs, lib, ... }:
-
-let
-  userConfig = import ../user-config.nix;
-in
+{ userConfig, config, pkgs, lib, ... }:
 
 {
   # Set hostname (optional but recommended)

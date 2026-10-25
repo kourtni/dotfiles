@@ -194,13 +194,13 @@ fi
 # The runner is only registered once the host is fully configured, so a
 # half-built box never starts picking up jobs.
 HOST_READY=
-if [ -f "$DOTFILES/user-config.nix" ]; then
+if [ -f "$HOME/.config/dotfiles/user-config.nix" ]; then
     log "Applying Home Manager configuration"
     # -B moves aside files Home Manager wants to own (e.g. the .bashrc from /etc/skel).
-    (cd "$DOTFILES" && nix run .#home-manager -- switch -B "$DOTFILES/scripts/hm-backup" --flake ".#$USER@x86_64-linux")
+    (cd "$DOTFILES" && nix run .#home-manager -- switch -B "$DOTFILES/scripts/hm-backup" --flake ".#$USER@x86_64-linux" --override-input user-config "path:$HOME/.config/dotfiles" --no-write-lock-file)
     HOST_READY=1
 else
-    warn "$DOTFILES/user-config.nix is missing. Copy it (and ~/.config/sops/age/keys.txt) from the existing box, then re-run this script."
+    warn "$HOME/.config/dotfiles/user-config.nix is missing. Copy it (and ~/.config/sops/age/keys.txt) from the existing box, then re-run this script."
 fi
 
 # A runner registered by an earlier version of this script lives in your own

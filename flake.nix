@@ -2,6 +2,12 @@
   description = "NixOS WSL + Home Manager Config";
 
   inputs = {
+    # Override with path:$HOME/.config/dotfiles when building locally.
+    # The checked-in placeholder fails explicitly instead of choosing a user.
+    user-config = {
+      url = "./config-default";
+      flake = false;
+    };
 
     # Input for the system foundation - using unstable for compatibility
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -48,7 +54,10 @@
 
   outputs = inputs@{ self, nixpkgs, nixpkgs-unstable, home-manager, nixos-wsl, nix-darwin, sops-nix, flake-programs-sqlite, antigravity-nix, ... }:
     let
-      userConfig = import ./user-config.nix;
+      rawUserConfig = import "${inputs.user-config}/user-config.nix";
+      validateUserConfig = import ./lib/validate-user-config.nix;
+      userConfig = validateUserConfig {} rawUserConfig;
+      nixosUserConfig = validateUserConfig { requireSystem = true; } rawUserConfig;
       username = userConfig.username;
 
       # Supported systems
@@ -58,7 +67,7 @@
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
 
       # Default system for NixOS configurations
-      defaultSystem = userConfig.system;
+      defaultSystem = nixosUserConfig.system;
 
       # The set of inputs a given system builds from. Only the Intel Mac
       # diverges from unstable (see the *-intel inputs above).
@@ -73,20 +82,21 @@
         };
 
       # Home Manager settings shared by the NixOS and nix-darwin modules.
-      homeManagerSettings = stack: {
+      homeManagerSettings = stack: userConfig: {
         home-manager.useGlobalPkgs = true;
         home-manager.useUserPackages = true;
         # Move files that are in the way of managed ones aside instead of
         # failing activation (standalone uses the same script via -B).
         home-manager.backupCommand = ./scripts/hm-backup;
-        home-manager.extraSpecialArgs = { inherit (stack) antigravity-nix; };
-        home-manager.users.${username} = import ./home/default.nix;
+        home-manager.extraSpecialArgs = { inherit userConfig; inherit (stack) antigravity-nix; };
+        home-manager.users.${userConfig.username} = import ./home/default.nix;
         home-manager.sharedModules = [ sops-nix.homeManagerModules.sops ];
       };
     in {
       # Used by `sudo nixos-rebuild switch --flake`
       nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
         system = defaultSystem;
+        specialArgs = { userConfig = nixosUserConfig; };
         modules = [
 
           ({ pkgs, ... }: {
@@ -107,7 +117,7 @@
           flake-programs-sqlite.nixosModules.programs-sqlite
           ./nixos/configuration.nix
           home-manager.nixosModules.home-manager
-          (homeManagerSettings (stackFor defaultSystem))
+          (homeManagerSettings (stackFor defaultSystem) nixosUserConfig)
         ];
       };
 
@@ -126,7 +136,7 @@
             let stack = stackFor system;
             in stack.home-manager.lib.homeManagerConfiguration {
               pkgs = import stack.nixpkgs { inherit system; config.allowUnfree = true; };
-              extraSpecialArgs = { inherit (stack) antigravity-nix; };
+              extraSpecialArgs = { inherit userConfig; inherit (stack) antigravity-nix; };
               modules = [ ./home/default.nix sops-nix.homeManagerModules.sops ];
             };
         in {
@@ -143,10 +153,11 @@
             let stack = stackFor system;
             in stack.nix-darwin.lib.darwinSystem {
               inherit system;
+              specialArgs = { inherit userConfig; };
               modules = [
                 ./darwin/configuration.nix
                 stack.home-manager.darwinModules.home-manager
-                (homeManagerSettings stack)
+                (homeManagerSettings stack userConfig)
               ];
             };
         in {

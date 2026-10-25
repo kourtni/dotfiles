@@ -1,7 +1,6 @@
-{ config, pkgs, lib, osConfig ? null, ... }:
+{ userConfig, config, pkgs, lib, osConfig ? null, ... }:
 
 let
-  userConfig = import ../user-config.nix;
   npmUtils = import ./npm-utils.nix { inherit pkgs; };
 
   # Platform detection (osConfig first: the path check is always false in pure
@@ -15,7 +14,7 @@ let
   vscodeDarwinPath = "/Applications/Visual Studio Code.app/Contents/Resources/app/bin";
   
   # Determine VS Code path based on platform
-  vscodePath = if isWSL then vscodeWSLPath
+  vscodePath = if isWSL then (if userConfig.windowsUsername != "" then vscodeWSLPath else null)
                else if isDarwin then vscodeDarwinPath
                else null; # No default path for native Linux
 in
@@ -172,13 +171,13 @@ in
         switch $system_type
           case "darwin"
             echo "Nix is managed by nix-darwin."
-            echo "Run: sudo darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}"
+            echo "Run: sudo darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system} --override-input user-config \"path:$HOME/.config/dotfiles\" --no-write-lock-file"
             echo ""
             echo "To update nixpkgs (which includes Nix), first run:"
             echo "  cd ~/dotfiles && nix flake update"
           case "nixos" "nixos-wsl"
             echo "Nix is managed by NixOS."
-            echo "Run: nixos-rebuild switch --sudo --flake ~/dotfiles#wsl"
+            echo "Run: nixos-rebuild switch --sudo --flake ~/dotfiles#wsl --override-input user-config \"path:$HOME/.config/dotfiles\" --no-write-lock-file"
             echo ""
             echo "To update nixpkgs (which includes Nix), first run:"
             echo "  cd ~/dotfiles && nix flake update"
@@ -192,10 +191,10 @@ in
     } // (if isDarwin then {
       # On macOS, use darwin-rebuild which manages both system and home-manager.
       # nix-darwin only activates as root.
-      hm-rebuild = "sudo darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system}";
+      hm-rebuild = "sudo darwin-rebuild switch --flake ~/dotfiles#${pkgs.stdenv.hostPlatform.system} --override-input user-config \"path:$HOME/.config/dotfiles\" --no-write-lock-file";
     } else {
       # On Linux, use standalone home-manager
-      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch -B ~/dotfiles/scripts/hm-backup --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system}";
+      hm-rebuild = "nix run ~/dotfiles#home-manager -- switch -B ~/dotfiles/scripts/hm-backup --flake ~/dotfiles#${userConfig.username}@${pkgs.stdenv.hostPlatform.system} --override-input user-config \"path:$HOME/.config/dotfiles\" --no-write-lock-file";
     }) // lib.optionalAttrs isLinux {
       # Portable VS Code launcher that works on any WSL system (Linux only)
       code = ''

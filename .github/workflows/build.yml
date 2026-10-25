@@ -74,10 +74,14 @@ jobs:
         with:
           name: ${{ inputs.lock-artifact }}
 
+      - name: Test user configuration validation
+        run: python3 -B -m unittest discover -s tests -v
+
       - name: Setup CI user config
         run: |
-          # Create a working user-config.nix for CI builds.
-          cat > user-config.nix << 'EOF'
+          # Keep synthetic CI settings outside the checkout.
+          mkdir -p "$RUNNER_TEMP/dotfiles-config"
+          cat > "$RUNNER_TEMP/dotfiles-config/user-config.nix" << 'EOF'
           {
             username = "runner";
             homeDirectory = "/home/runner";
@@ -93,5 +97,6 @@ jobs:
 
       - name: Build
         run: |
-          nix build ${{ matrix.targets }} --no-link --print-build-logs
+          nix build ${{ matrix.targets }} --no-link --print-build-logs \
+            --override-input user-config "path:$RUNNER_TEMP/dotfiles-config" --no-write-lock-file
           df -h /

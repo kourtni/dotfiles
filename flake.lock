@@ -278,7 +278,8 @@
         "nixpkgs": "nixpkgs",
         "nixpkgs-intel": "nixpkgs-intel",
         "nixpkgs-unstable": "nixpkgs-unstable",
-        "sops-nix": "sops-nix"
+        "sops-nix": "sops-nix",
+        "user-config": "user-config"
       }
     },
     "sops-nix": {
@@ -330,6 +331,18 @@
         "repo": "default",
         "type": "github"
       }
+    },
+    "user-config": {
+      "flake": false,
+      "locked": {
+        "path": "./config-default",
+        "type": "path"
+      },
+      "original": {
+        "path": "./config-default",
+        "type": "path"
+      },
+      "parent": []
     }
   },
   "root": "root",

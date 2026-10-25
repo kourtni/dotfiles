@@ -1,8 +1,9 @@
 # User Configuration Template
-# Copy this file to user-config.nix and modify the values to match your setup
+# Copy to ~/.config/dotfiles/user-config.nix only if absent, then customize.
+# This directory becomes a Nix input: keep secrets elsewhere (use sops).
 
 {
-  # User settings
+  # Required user settings
   username = "your-username";
   homeDirectory = "/home/your-username";  # or "/Users/your-username" on macOS
   uid = null; # macOS only: your numeric uid (`id -u`) so nix-darwin can set your login shell; null leaves the account alone
@@ -14,9 +15,9 @@
   };
   
   # Platform-specific paths
-  windowsUsername = "your-windows-username"; # Your Windows username for WSL VS Code integration
+  windowsUsername = ""; # Optional: Windows username for WSL VS Code integration; defaults to empty
   
   # System settings
-  system = "x86_64-linux"; # Your system architecture (e.g., "x86_64-linux", "aarch64-linux", "aarch64-darwin")
+  system = "x86_64-linux"; # Required for NixOS; optional otherwise. Your architecture (e.g., "x86_64-linux", "aarch64-linux", "aarch64-darwin")
   stateVersion = "24.11"; # Home Manager state version - see https://nix-community.github.io/home-manager/release-notes.html
 }
