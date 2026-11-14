@@ -248,6 +248,41 @@ in
     settings = import ./starship-settings-from-toml.nix;
   };
 
+  programs.tmux = {
+    enable = true;
+    # New panes start fish directly; otherwise tmux runs the login shell,
+    # which is bash on the Arch runners (it would then exec fish anyway).
+    shell = "${config.programs.fish.package}/bin/fish";
+    # Matches fish_vi_key_bindings and nvim as EDITOR.
+    keyMode = "vi";
+    # No delay after Esc, so leaving insert mode in nvim/fish is instant.
+    escapeTime = 0;
+    mouse = true;
+    # Let nvim receive focus events (autoread etc.).
+    focusEvents = true;
+    baseIndex = 1;
+    historyLimit = 50000;
+    terminal = "tmux-256color";
+    extraConfig = ''
+      # Pass true color through so Gruvbox renders correctly.
+      set -ag terminal-overrides ",*:RGB"
+      set -g renumber-windows on
+
+      # Split and open new windows in the current pane's directory.
+      bind '"' split-window -v -c "#{pane_current_path}"
+      bind % split-window -h -c "#{pane_current_path}"
+      bind c new-window -c "#{pane_current_path}"
+
+      # Vim-style pane navigation and copy mode.
+      bind h select-pane -L
+      bind j select-pane -D
+      bind k select-pane -U
+      bind l select-pane -R
+      bind -T copy-mode-vi v send-keys -X begin-selection
+      bind -T copy-mode-vi y send-keys -X copy-selection-and-cancel
+    '';
+  };
+
   fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux;
 
   # Add npm global bin and ~/.local/bin (codex, user scripts) to PATH
