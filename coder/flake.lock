@@ -1,0 +1,94 @@
+{
+  "nodes": {
+    "home-manager": {
+      "inputs": {
+        "nixpkgs": [
+          "smyl-coder",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792818383,
+        "narHash": "sha256-199i7ubVSXTMl+0AAlL7cVCXSjcI+jWByMcimYjeMX0=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "24f2190587513b9c2f73db112a17844ae912d965",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "ref": "release-26.05",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1793015021,
+        "narHash": "sha256-Ee5BWo8sh3pGt70QUdRajnaginqFmWvrtdBc4gJzhks=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "718f670e845328e9c2cecdd832835712b2cbd065",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-26.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "home-manager": [
+          "smyl-coder",
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "smyl-coder",
+          "nixpkgs"
+        ],
+        "smyl-coder": "smyl-coder"
+      }
+    },
+    "smyl-coder": {
+      "inputs": {
+        "home-manager": "home-manager",
+        "nixpkgs": "nixpkgs",
+        "workspace-base": "workspace-base"
+      },
+      "locked": {
+        "dir": "infra/devops/coder",
+        "lastModified": 1795474037,
+        "narHash": "sha256-ZLIslcRqHOBTSDjop0T8EF6Kxyh6sijm8XzrY4LtlCY=",
+        "ref": "main",
+        "rev": "7802072a458d5e19f3b02da3aee6fd523deb818f",
+        "revCount": 12718,
+        "type": "git",
+        "url": "https://github.com/smyl-fitness/smyl-webapp"
+      },
+      "original": {
+        "dir": "infra/devops/coder",
+        "ref": "main",
+        "type": "git",
+        "url": "https://github.com/smyl-fitness/smyl-webapp"
+      }
+    },
+    "workspace-base": {
+      "flake": false,
+      "locked": {
+        "path": "./nixos/base",
+        "type": "path"
+      },
+      "original": {
+        "path": "./nixos/base",
+        "type": "path"
+      },
+      "parent": [
+        "smyl-coder"
+      ]
+    }
+  },
+  "root": "root",
+  "version": 7
+}
